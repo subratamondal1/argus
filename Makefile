@@ -1,4 +1,4 @@
-.PHONY: up down status ask research format format-check lint typecheck test ci
+.PHONY: up down status ask research eval format format-check lint typecheck test ci
 
 up:
 	python3 scripts/devstack.py up
@@ -16,6 +16,9 @@ ask:
 research:
 	@test -n "$(Q)" || { echo 'usage: make research Q="your question"'; exit 1; }
 	uv run argus --deep "$(Q)"
+
+eval:
+	uv run argus eval
 
 format:
 	uv run ruff format .

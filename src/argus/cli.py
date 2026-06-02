@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -14,6 +15,8 @@ from argus.agent.orchestrator import Orchestrator
 from argus.agent.prompts import research_system_prompt
 from argus.config import Settings, get_settings
 from argus.db import close_pool
+from argus.eval.harness import run_gate
+from argus.eval.runner import EvalReport
 from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import ingest_source
@@ -118,6 +121,36 @@ def _main_ingest(argv: list[str]) -> int:
     )
 
 
+def _format_eval(report: EvalReport) -> str:
+    status: str = "PASS" if report.passed else "FAIL"
+    lines: list[str] = [
+        f"eval {status}  (n={report.n})",
+        f"  hit@k           {report.hit_at_k:.3f}",
+        f"  precision@k     {report.precision_at_k:.3f}",
+        f"  mrr             {report.mrr:.3f}",
+        f"  judge_pass_rate {report.judge_pass_rate:.3f}",
+    ]
+    lines.extend(f"  - {failure}" for failure in report.failures)
+    return "\n".join(lines) + "\n"
+
+
+def _main_eval(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="argus eval", description="Run the golden-set eval gate against the live stack."
+    )
+    parser.add_argument("--golden", default="eval/golden.jsonl", help="Golden dataset (jsonl).")
+    parser.add_argument("--thresholds", default="eval/thresholds.json", help="Gate thresholds.")
+    parser.add_argument(
+        "--report", default="eval/last_report.json", help="Where to write the report."
+    )
+    arguments = parser.parse_args(argv)
+    report = asyncio.run(
+        run_gate(Path(arguments.golden), Path(arguments.thresholds), Path(arguments.report))
+    )
+    sys.stdout.write(_format_eval(report))
+    return 0 if report.passed else 1
+
+
 def main() -> None:
     load_dotenv()
     settings = get_settings()
@@ -125,6 +158,8 @@ def main() -> None:
     argv: list[str] = sys.argv[1:]
     if argv and argv[0] == "ingest":
         raise SystemExit(_main_ingest(argv[1:]))
+    if argv and argv[0] == "eval":
+        raise SystemExit(_main_eval(argv[1:]))
     raise SystemExit(_main_ask(argv))
 
 

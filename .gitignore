@@ -24,3 +24,6 @@ uv.lock.bak
 *.log
 /data/
 /traces/
+
+# eval run artifacts (the golden set + thresholds are committed; reports are not)
+/eval/last_report.json

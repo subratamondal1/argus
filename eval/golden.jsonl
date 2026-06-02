@@ -1,0 +1,6 @@
+{"question": "How does Argus combine dense vector search and lexical search results?", "relevant_sources": ["README.md"], "must_include": ["Reciprocal Rank Fusion"]}
+{"question": "What scales Argus's searcher pods, and from what starting count?", "relevant_sources": ["README.md"], "must_include": ["KEDA"]}
+{"question": "Which model does Argus use for local document embeddings?", "relevant_sources": ["README.md"], "must_include": ["nomic-embed-text"]}
+{"question": "What single datastore backs Argus, and what does it hold?", "relevant_sources": ["0001-datastore-postgres-pgvector.md"], "must_include": ["pgvector"]}
+{"question": "Why is Argus framework-free instead of using a graph framework like LangGraph?", "relevant_sources": ["README.md"], "must_include": []}
+{"question": "Per ADR 0001, is the claim that pgvector is '50x faster' accurate?", "relevant_sources": ["0001-datastore-postgres-pgvector.md"], "must_include": []}
