@@ -121,6 +121,30 @@ make eval-calibrate                   # prove the judge agrees with humans (Cohe
   (no DB, no API key); the *live* gate runs from `make eval` against the stack,
   and slots into CI as a stack-provisioned job in a later phase.
 
+## Web UI
+
+A Next.js (App Router) frontend talks to the FastAPI backend over Server-Sent
+Events, so you can watch the agent work in the browser — or run the backend alone
+in the terminal and read the structured logs.
+
+```bash
+docker compose --profile data up -d   # backing services (Postgres + pgvector, SearXNG)
+make web-install                      # first time only: install the frontend's npm deps
+make web                              # FastAPI on :8000 + Next.js on :3000 -> open http://localhost:3000
+```
+
+The UI streams the multi-agent flow live — planning, parallel searches, tool
+calls, synthesis, reflection — then renders the cited Markdown answer, with a
+panel to ingest documents and a deep-research toggle. Decoupled by design: Next
+on `:3000` calls the FastAPI API on `:8000` (`NEXT_PUBLIC_API_URL` overridable).
+
+Prefer just the engine? The backend is standalone and the CLI is unchanged:
+
+```bash
+make serve                                  # the API alone on :8000
+uv run argus --deep "What is Argus?"        # or pure CLI — structured logs in the terminal
+```
+
 ## Development
 
 ```bash

@@ -1,4 +1,4 @@
-.PHONY: up down status ask research eval eval-calibrate format format-check lint typecheck test ci
+.PHONY: up down status ask research eval eval-calibrate serve web web-install format format-check lint typecheck test ci
 
 up:
 	python3 scripts/devstack.py up
@@ -22,6 +22,15 @@ eval:
 
 eval-calibrate:
 	uv run argus eval --calibrate
+
+serve:
+	uv run argus serve --reload
+
+web-install:
+	cd frontend && npm install
+
+web:
+	bash scripts/web.sh
 
 format:
 	uv run ruff format .
