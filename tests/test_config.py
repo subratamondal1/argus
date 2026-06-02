@@ -18,3 +18,14 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings()
     assert settings.model == "openai/gpt-5"
     assert settings.max_turns == 3
+
+
+def test_searxng_url_default() -> None:
+    assert Settings().searxng_url == "http://localhost:8080"
+
+
+def test_searxng_url_follows_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ARGUS_SEARXNG_PORT", "8085")
+    settings = Settings()
+    assert settings.searxng_port == 8085
+    assert settings.searxng_url == "http://localhost:8085"
