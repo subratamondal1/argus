@@ -43,7 +43,15 @@ class Settings(BaseSettings):
     )
     embedding_model: str = Field(
         default="ollama/nomic-embed-text",
-        description="Local embedding model (768-dim), served by native Ollama.",
+        description=(
+            "Embedding model. An ollama/ model is served locally; anything else "
+            "(e.g. openai/text-embedding-3-small) goes through LiteLLM."
+        ),
+    )
+    embedding_dimensions: int = Field(
+        default=768,
+        gt=0,
+        description="Output embedding width; must match the chunks.embedding vector(N) column.",
     )
     context_model: str | None = Field(
         default=None,
