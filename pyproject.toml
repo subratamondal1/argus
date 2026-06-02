@@ -64,7 +64,10 @@ ignore = ["E501"]  # line length handled by formatter, not linter
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-q"
+addopts = "-q -m 'not integration'"
+markers = [
+    "integration: needs a live Postgres+pgvector and Ollama; deselected by default, run with -m integration",
+]
 
 [tool.ty.environment]
 python-version = "3.12"

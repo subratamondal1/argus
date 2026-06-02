@@ -17,6 +17,7 @@ from argus.db import close_pool
 from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import ingest_source
+from argus.tools.rag_search import register_rag_search
 from argus.tools.registry import ToolRegistry
 from argus.tools.web_fetch import register_web_fetch
 from argus.tools.web_search import register_web_search
@@ -26,6 +27,8 @@ def _registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_web_search(registry)
     register_web_fetch(registry)
+    if get_settings().rag_enabled:
+        register_rag_search(registry)
     return registry
 
 
