@@ -89,15 +89,18 @@ def _report_dict(report: EvalReport) -> dict[str, Any]:
         "precision_at_k": report.precision_at_k,
         "mrr": report.mrr,
         "judge_pass_rate": report.judge_pass_rate,
+        "keyword_pass_rate": report.keyword_pass_rate,
         "passed": report.passed,
         "failures": report.failures,
         "items": [
             {
                 "question": item.question,
+                "answer": item.answer,
                 "hit": item.hit,
                 "precision": item.precision,
                 "reciprocal_rank": item.reciprocal_rank,
                 "judge_passed": item.judge_passed,
+                "judge_reason": item.judge_reason,
                 "keyword_ok": item.keyword_ok,
             }
             for item in report.items

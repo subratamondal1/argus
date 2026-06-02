@@ -25,6 +25,7 @@ class Thresholds(BaseModel):
     min_precision_at_k: float = 0.2
     min_mrr: float = 0.6
     min_judge_pass_rate: float = 0.7
+    min_keyword_pass_rate: float = 0.6
 
 
 def load_golden(path: Path) -> list[GoldenItem]:

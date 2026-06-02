@@ -125,10 +125,11 @@ def _format_eval(report: EvalReport) -> str:
     status: str = "PASS" if report.passed else "FAIL"
     lines: list[str] = [
         f"eval {status}  (n={report.n})",
-        f"  hit@k           {report.hit_at_k:.3f}",
-        f"  precision@k     {report.precision_at_k:.3f}",
-        f"  mrr             {report.mrr:.3f}",
-        f"  judge_pass_rate {report.judge_pass_rate:.3f}",
+        f"  hit@k             {report.hit_at_k:.3f}",
+        f"  precision@k       {report.precision_at_k:.3f}",
+        f"  mrr               {report.mrr:.3f}",
+        f"  judge_pass_rate   {report.judge_pass_rate:.3f}",
+        f"  keyword_pass_rate {report.keyword_pass_rate:.3f}",
     ]
     lines.extend(f"  - {failure}" for failure in report.failures)
     return "\n".join(lines) + "\n"

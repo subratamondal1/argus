@@ -3,10 +3,16 @@
 The runner is pure orchestration over three injected callables, so its
 pass/fail logic is unit-tested in CI with fakes — no DB, no LLM. harness.py
 wires the real retriever, agent loop, and judge.
+
+Two answer-quality signals are kept separate: the LLM judge (semantic
+correctness + grounding) and a normalized keyword check (a cheap, deterministic
+grounding guard). They are reported and gated independently so a phrasing
+difference never masquerades as a wrong answer.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -22,14 +28,18 @@ RetrieveFn = Callable[[str], Awaitable[list[RetrievedChunk]]]
 AnswerFn = Callable[[str], Awaitable[str]]
 JudgeFn = Callable[[str, str, str], Awaitable[Verdict]]
 
+_ANSWER_PREVIEW_CHARS: int = 400
+
 
 @dataclass(frozen=True)
 class ItemResult:
     question: str
+    answer: str
     hit: float
     precision: float
     reciprocal_rank: float
     judge_passed: bool
+    judge_reason: str
     keyword_ok: bool
 
 
@@ -40,6 +50,7 @@ class EvalReport:
     precision_at_k: float
     mrr: float
     judge_pass_rate: float
+    keyword_pass_rate: float
     passed: bool
     failures: list[str]
     items: list[ItemResult]
@@ -47,6 +58,15 @@ class EvalReport:
 
 def _is_relevant(source_uri: str, patterns: list[str]) -> bool:
     return any(pattern in source_uri for pattern in patterns)
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"[\s_-]+", " ", text.lower()).strip()
+
+
+def _keyword_ok(answer: str, must_include: list[str]) -> bool:
+    normalized: str = _normalize(answer)
+    return all(_normalize(keyword) in normalized for keyword in must_include)
 
 
 async def evaluate(
@@ -66,17 +86,16 @@ async def evaluate(
         answer_text: str = await answer(item.question)
         context: str = "\n\n".join(chunk.content for chunk in chunks)
         verdict: Verdict = await judge(item.question, answer_text, context)
-        keyword_ok: bool = all(
-            keyword.lower() in answer_text.lower() for keyword in item.must_include
-        )
         results.append(
             ItemResult(
                 question=item.question,
+                answer=answer_text[:_ANSWER_PREVIEW_CHARS],
                 hit=hit_at_k(relevances, thresholds.k),
                 precision=precision_at_k(relevances, thresholds.k),
                 reciprocal_rank=reciprocal_rank(relevances),
                 judge_passed=verdict.passed,
-                keyword_ok=keyword_ok,
+                judge_reason=verdict.reason,
+                keyword_ok=_keyword_ok(answer_text, item.must_include),
             )
         )
         log.info("eval_item", question=item.question, hit=results[-1].hit, judged=verdict.passed)
@@ -87,9 +106,8 @@ def _aggregate(results: list[ItemResult], thresholds: Thresholds) -> EvalReport:
     hit: float = mean([result.hit for result in results])
     precision: float = mean([result.precision for result in results])
     mrr: float = mean([result.reciprocal_rank for result in results])
-    judge_pass_rate: float = mean(
-        [1.0 if (result.judge_passed and result.keyword_ok) else 0.0 for result in results]
-    )
+    judge_pass_rate: float = mean([1.0 if result.judge_passed else 0.0 for result in results])
+    keyword_pass_rate: float = mean([1.0 if result.keyword_ok else 0.0 for result in results])
 
     failures: list[str] = []
     if hit < thresholds.min_hit_at_k:
@@ -102,6 +120,10 @@ def _aggregate(results: list[ItemResult], thresholds: Thresholds) -> EvalReport:
         failures.append(f"mrr {mrr:.3f} < {thresholds.min_mrr}")
     if judge_pass_rate < thresholds.min_judge_pass_rate:
         failures.append(f"judge_pass_rate {judge_pass_rate:.3f} < {thresholds.min_judge_pass_rate}")
+    if keyword_pass_rate < thresholds.min_keyword_pass_rate:
+        failures.append(
+            f"keyword_pass_rate {keyword_pass_rate:.3f} < {thresholds.min_keyword_pass_rate}"
+        )
 
     return EvalReport(
         n=len(results),
@@ -109,6 +131,7 @@ def _aggregate(results: list[ItemResult], thresholds: Thresholds) -> EvalReport:
         precision_at_k=precision,
         mrr=mrr,
         judge_pass_rate=judge_pass_rate,
+        keyword_pass_rate=keyword_pass_rate,
         passed=not failures,
         failures=failures,
         items=results,
