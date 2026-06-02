@@ -26,7 +26,7 @@ from argus.agent.prompts import (
     research_system_prompt,
     synthesis_messages,
 )
-from argus.llm import LLMResponse
+from argus.llm import LLMResponse, TokenSink
 from argus.logging import get_logger
 from argus.tools.registry import ToolRegistry
 
@@ -71,6 +71,8 @@ class ResearchClient(Protocol):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        on_token: TokenSink | None = None,
     ) -> LLMResponse: ...
 
     async def complete_structured(
@@ -104,7 +106,7 @@ class Orchestrator:
             )
             findings.extend(round_findings)
             await emit(on_event, "synthesize", findings=len(findings))
-            draft = await self._synthesize(question, findings)
+            draft = await self._synthesize(question, findings, on_event)
             reflection: Reflection = await self.llm.complete_structured(
                 reflection_messages(question, draft), Reflection
             )
@@ -116,7 +118,8 @@ class Orchestrator:
             pending = reflection.missing[: self.max_sub_questions]
 
         if not draft:
-            draft = await self._synthesize(question, findings)
+            await emit(on_event, "synthesize", findings=len(findings))
+            draft = await self._synthesize(question, findings, on_event)
         log.info("research_done", rounds=rounds, findings=len(findings))
         await emit(on_event, "answer", text=draft)
         return ResearchReport(question=question, answer=draft, findings=findings, rounds=rounds)
@@ -133,8 +136,17 @@ class Orchestrator:
         await emit(on_event, "search_done", sub_question=sub_question)
         return Finding(sub_question=sub_question, answer=result.answer)
 
-    async def _synthesize(self, question: str, findings: list[Finding]) -> str:
+    async def _synthesize(
+        self, question: str, findings: list[Finding], on_event: EventSink | None = None
+    ) -> str:
+        token_sink: TokenSink | None = None
+        if on_event is not None:
+
+            async def token_sink(delta: str) -> None:
+                await emit(on_event, "token", text=delta)
+
         response: LLMResponse = await self.llm.complete(
-            synthesis_messages(question, [(f.sub_question, f.answer) for f in findings])
+            synthesis_messages(question, [(f.sub_question, f.answer) for f in findings]),
+            on_token=token_sink,
         )
         return response.content or ""

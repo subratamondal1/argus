@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from argus.agent.budget import Budget, BudgetState, BudgetStop
 from argus.agent.events import EventSink, emit
-from argus.llm import LLMResponse
+from argus.llm import LLMResponse, TokenSink
 from argus.logging import get_logger
 from argus.tools.registry import Approver, ToolCall, ToolRegistry, ToolResult
 
@@ -23,6 +23,8 @@ class CompletionClient(Protocol):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        on_token: TokenSink | None = None,
     ) -> LLMResponse: ...
 
 
@@ -73,7 +75,13 @@ class AgentLoop:
         self._system_prompt: str = system_prompt
         self._approver: Approver | None = approver
 
-    async def run(self, user_input: str, *, on_event: EventSink | None = None) -> AgentResult:
+    async def run(
+        self,
+        user_input: str,
+        *,
+        on_event: EventSink | None = None,
+        stream_tokens: bool = False,
+    ) -> AgentResult:
         state: BudgetState = BudgetState(self._budget)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._system_prompt},
@@ -82,6 +90,12 @@ class AgentLoop:
         tools: list[dict[str, Any]] | None = self._registry.schema() or None
         answer: str = ""
         stop_reason: str = "completed"
+
+        token_sink: TokenSink | None = None
+        if stream_tokens and on_event is not None:
+
+            async def token_sink(delta: str) -> None:
+                await emit(on_event, "token", text=delta)
 
         async with AsyncExitStack() as stack:
             stack.callback(lambda: log.debug("agent_loop_teardown", turns=state.turns))
@@ -93,7 +107,9 @@ class AgentLoop:
                     answer = answer or f"[stopped: {stop.value} budget reached]"
                     break
 
-                response: LLMResponse = await self._llm.complete(messages, tools=tools)
+                response: LLMResponse = await self._llm.complete(
+                    messages, tools=tools, on_token=token_sink
+                )
                 state.record_turn(
                     tokens=response.prompt_tokens + response.completion_tokens,
                     cost_usd=response.cost_usd,

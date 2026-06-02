@@ -13,6 +13,8 @@ class FakeResearchLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        on_token: Any = None,
     ) -> LLMResponse:
         system = str(messages[0]["content"]) if messages else ""
         content = "FINAL SYNTHESIZED ANSWER" if "synthesis" in system.lower() else "a sub-finding"

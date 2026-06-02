@@ -23,6 +23,8 @@ class FakeLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        on_token: Any = None,
     ) -> LLMResponse:
         self.calls += 1
         return self._responses.pop(0)

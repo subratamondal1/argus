@@ -21,6 +21,7 @@ dependencies = [
     "fastapi>=0.115",      # HTTP API for the web UI
     "uvicorn[standard]>=0.32", # ASGI server for `argus serve`
     "sse-starlette>=2.1",  # Server-Sent Events for streaming agent progress
+    "python-multipart>=0.0.12", # multipart file upload for /api/ingest/upload
 ]
 
 [project.optional-dependencies]

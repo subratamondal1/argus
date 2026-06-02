@@ -24,10 +24,15 @@ async def test_health() -> None:
 
 
 class _FakeLoop:
-    async def run(self, question: str, *, on_event: Any = None) -> AgentResult:
+    async def run(
+        self, question: str, *, on_event: Any = None, stream_tokens: bool = False
+    ) -> AgentResult:
         if on_event is not None:
             await on_event(AgentEvent("turn", {"n": 1, "tool_calls": 1}))
             await on_event(AgentEvent("tool", {"name": "rag_search", "query": question}))
+            if stream_tokens:
+                await on_event(AgentEvent("token", {"text": "the "}))
+                await on_event(AgentEvent("token", {"text": "answer"}))
         return AgentResult(
             answer="the grounded answer",
             stop_reason="completed",
@@ -58,6 +63,7 @@ async def test_ask_streams_progress_then_answer_then_done(
     kinds = [event["type"] for event in events]
     assert "turn" in kinds
     assert "tool" in kinds
+    assert "token" in kinds
     assert "answer" in kinds
     assert kinds[-1] == "done"
     answer = next(event for event in events if event["type"] == "answer")
@@ -78,3 +84,22 @@ async def test_ingest_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         response = await client.post("/api/ingest", json={"source": "README.md"})
     assert response.status_code == 200
     assert response.json() == {"source_uri": "README.md", "chunks_written": 7}
+
+
+async def test_ingest_upload_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Result:
+        source_uri = "ignored"
+        chunks_written = 3
+
+    async def fake_ingest(source: str, *, corpus: str = "default") -> Any:
+        return _Result()
+
+    monkeypatch.setattr(web, "ingest_source", fake_ingest)
+
+    async with _client() as client:
+        response = await client.post(
+            "/api/ingest/upload",
+            files={"file": ("notes.md", b"# hi\n\nbody", "text/markdown")},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"source_uri": "notes.md", "chunks_written": 3}

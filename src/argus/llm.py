@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -13,6 +14,8 @@ from argus.logging import get_logger
 log = get_logger(__name__)
 
 _Structured = TypeVar("_Structured", bound=BaseModel)
+
+TokenSink = Callable[[str], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -44,15 +47,48 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        on_token: TokenSink | None = None,
     ) -> LLMResponse:
-        response: Any = await litellm.acompletion(
+        if on_token is None:
+            response: Any = await litellm.acompletion(
+                model=self._model,
+                messages=messages,
+                tools=tools,
+                timeout=self._timeout,
+                **self._sampling_kwargs(),
+            )
+        else:
+            response = await self._stream(messages, tools, on_token)
+        return self._normalize(response)
+
+    async def _stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        on_token: TokenSink,
+    ) -> Any:
+        chunks: list[Any] = []
+        stream: Any = await litellm.acompletion(
             model=self._model,
             messages=messages,
             tools=tools,
             timeout=self._timeout,
+            stream=True,
+            stream_options={"include_usage": True},
             **self._sampling_kwargs(),
         )
+        async for chunk in stream:
+            chunks.append(chunk)
+            choices: Any = getattr(chunk, "choices", None)
+            if not choices:
+                continue
+            delta: str | None = getattr(choices[0].delta, "content", None)
+            if delta:
+                await on_token(delta)
+        return litellm.stream_chunk_builder(chunks, messages=messages)
 
+    def _normalize(self, response: Any) -> LLMResponse:
         message: Any = response.choices[0].message
         tool_calls: list[ToolCallRequest] = [
             ToolCallRequest(id=call.id, name=call.function.name, arguments=call.function.arguments)

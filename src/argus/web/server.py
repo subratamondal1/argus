@@ -10,11 +10,15 @@ first use and closed once on shutdown.
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Annotated
 
 import orjson
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -93,7 +97,7 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
             if request.deep:
                 await build_orchestrator().run(request.question, on_event=sink)
             else:
-                result = await build_loop().run(request.question, on_event=sink)
+                result = await build_loop().run(request.question, on_event=sink, stream_tokens=True)
                 await sink(AgentEvent("answer", {"text": result.answer}))
         except Exception as error:
             await sink(AgentEvent("error", {"message": f"{type(error).__name__}: {error}"}))
@@ -117,3 +121,21 @@ async def ingest(request: IngestRequest) -> IngestResponse:
     result = await ingest_source(request.source, corpus=request.corpus)
     log.info("api_ingest", source=result.source_uri, chunks=result.chunks_written)
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
+
+
+def _persist_upload(name: str, data: bytes) -> str:
+    directory: str = tempfile.mkdtemp(prefix="argus-upload-")
+    path: str = os.path.join(directory, name)
+    with open(path, "wb") as handle:
+        handle.write(data)
+    return path
+
+
+@app.post("/api/ingest/upload")
+async def ingest_upload(file: Annotated[UploadFile, File()]) -> IngestResponse:
+    name: str = Path(file.filename or "upload").name
+    data: bytes = await file.read()
+    path: str = await asyncio.to_thread(_persist_upload, name, data)
+    result = await ingest_source(path, corpus="default")
+    log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
+    return IngestResponse(source_uri=name, chunks_written=result.chunks_written)
