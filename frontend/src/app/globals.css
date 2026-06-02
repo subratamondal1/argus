@@ -1,39 +1,45 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --background: #d8e0ea;
+  --surface: #dde4ed;
+  --foreground: #16181d;
+  --accent: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b0c0e;
+    --surface: #000000;
+    --foreground: #e9edf3;
+    --accent: #6aa6ff;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-source-serif);
+  --font-mono: var(--font-jetbrains);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 /* Blinking caret shown at the end of the streaming answer. */
 .argus-cursor {
   display: inline-block;
-  width: 0.5rem;
+  width: 2px;
   height: 1.05rem;
-  margin-left: 1px;
-  transform: translateY(2px);
-  background: currentColor;
-  opacity: 0.7;
+  margin-left: 2px;
+  transform: translateY(3px);
+  background: var(--accent);
   animation: argus-blink 1s steps(2, start) infinite;
 }
 @keyframes argus-blink {
@@ -42,28 +48,36 @@ body {
   }
 }
 
-/* Lightweight prose styling for the streamed Markdown answer (no typography plugin). */
+/* Editorial prose for the streamed Markdown answer (serif body, no typography plugin). */
 .answer-prose {
-  line-height: 1.65;
+  font-family: var(--font-source-serif), Georgia, serif;
+  font-size: 16px;
+  line-height: 1.75;
 }
 .answer-prose > * + * {
-  margin-top: 0.75rem;
+  margin-top: 0.9rem;
 }
 .answer-prose h1,
 .answer-prose h2,
 .answer-prose h3 {
+  font-family: var(--font-inter), system-ui, sans-serif;
   font-weight: 600;
   line-height: 1.3;
+  letter-spacing: -0.01em;
+  margin-top: 1.6rem;
 }
 .answer-prose h1 {
-  font-size: 1.25rem;
+  font-size: 1.3rem;
 }
 .answer-prose h2 {
-  font-size: 1.1rem;
+  font-size: 1.12rem;
+}
+.answer-prose h3 {
+  font-size: 1rem;
 }
 .answer-prose ul,
 .answer-prose ol {
-  padding-left: 1.25rem;
+  padding-left: 1.3rem;
 }
 .answer-prose ul {
   list-style: disc;
@@ -71,24 +85,46 @@ body {
 .answer-prose ol {
   list-style: decimal;
 }
+.answer-prose li + li {
+  margin-top: 0.3rem;
+}
 .answer-prose a {
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.answer-prose strong {
+  font-weight: 650;
+}
 .answer-prose code {
   border-radius: 0.25rem;
-  background: rgba(127, 127, 127, 0.15);
-  padding: 0.1rem 0.3rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.875em;
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 0.85em;
 }
 .answer-prose pre {
   overflow-x: auto;
-  border-radius: 0.5rem;
-  background: rgba(127, 127, 127, 0.12);
-  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  padding: 0.85rem 1rem;
 }
 .answer-prose pre code {
   background: transparent;
   padding: 0;
+}
+.answer-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.answer-prose th,
+.answer-prose td {
+  border: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+}
+.answer-prose th {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-weight: 600;
 }

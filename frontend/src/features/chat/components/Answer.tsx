@@ -17,7 +17,7 @@ export function Answer({ text, streaming }: { text: string; streaming: boolean }
   if (text.length === 0) return null;
   const body = streaming ? text : stripSources(text);
   return (
-    <div className="answer-prose text-[15px] leading-7 text-zinc-800 dark:text-zinc-200">
+    <div className="answer-prose text-foreground/90">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
