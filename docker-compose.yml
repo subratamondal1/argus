@@ -1,8 +1,8 @@
-# Local backing services for Argus. Phase 0 needs only SearXNG (the search tool's
-# backend). The host port comes from ARGUS_SEARXNG_PORT (default 8080); `make up`
-# selects the first free port and writes it to .env so the app and the container
-# agree on one port. Phase 1+ add the OTel collector + Grafana/Tempo; Phase 2 adds
-# NATS + Redis + Postgres.
+# Local backing services for Argus. SearXNG (the web_search backend) is always on;
+# its host port comes from ARGUS_SEARXNG_PORT (default 8080), and `make up` selects
+# the first free port and writes it to .env so the app and the container agree.
+# Postgres + pgvector (the `data` profile) backs contextual RAG. Phase 1+ add the
+# OTel collector + Grafana/Tempo; Phase 2 adds an ARQ-on-Redis work queue.
 
 services:
   searxng:

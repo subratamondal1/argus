@@ -12,11 +12,12 @@ Argus is built to prove four things a single-agent app can't: **true horizontal 
 queue-depth autoscaling of lightweight agent pods), **multi-agent orchestration**, **sandboxed
 code execution**, and a **full, forkable LLMOps + eval pipeline**.
 
-> **Status: Phase 0 — the spine.** A hand-written agent loop, a self-registering tool registry
-> with permission gating, a 3-axis budget + cost cap, and one web-search tool over self-hosted
-> SearXNG. Single-process today; the planner/searcher/synthesizer swarm and the Kubernetes
-> autoscaling land in later phases (see the roadmap below). Built in the open, one atomic commit
-> at a time.
+> **Status: Phase 2b — contextual RAG.** The hand-written agent loop, permission-gated tool
+> registry, and 3-axis budget now drive an in-process multi-agent orchestrator (plan → parallel
+> searchers → synthesize → reflect/replan) and a local contextual-RAG pipeline: `argus ingest`
+> builds a PostgreSQL + pgvector corpus, and a `rag_search` tool retrieves it alongside web
+> search. Still single-process; the Kubernetes + KEDA autoscaling and the CI eval gate land in
+> later phases (see the roadmap below). Built in the open, one atomic commit at a time.
 
 ## Why framework-free?
 
@@ -31,7 +32,7 @@ why these eval thresholds), because the judgment is the point, not the dependenc
 The hire-bar for production agent engineering is being able to build these eight from scratch.
 Argus implements each as a readable module; this table tracks where each one stands.
 
-| # | Primitive | Where it lives | Phase 0 |
+| # | Primitive | Where it lives | Status |
 |---|---|---|---|
 | 1 | Tool registry (self-registering, permission-gated, async dispatch) | [`tools/registry.py`](src/argus/tools/registry.py) | ✅ |
 | 2 | Prompt assembly (typed segments, cache breakpoints) | `agent/prompt.py` | Phase 1 |
@@ -62,6 +63,35 @@ uv run argus "What changed in the EU AI Act timeline in 2026?"   # or: make ask 
 # Stack controls: `make status` (is it up, and where) · `make down` (stop it).
 ```
 
+## Ingest your own documents (Phase 2b)
+
+Argus can also answer from a local document corpus. Bring up PostgreSQL + pgvector
+(the `data` compose profile, alongside SearXNG) and ingest files or URLs; embeddings
+run locally on Ollama, so no document text leaves the machine.
+
+```bash
+# 1. Start Postgres + pgvector (also starts SearXNG).
+docker compose --profile data up -d
+
+# 2. Pull the local embedding model (one time).
+ollama pull nomic-embed-text
+
+# 3. Ingest a file or a URL into the corpus.
+uv run argus ingest ./notes/architecture.md
+uv run argus ingest https://example.com/post
+
+# 4. Ask — the agent calls rag_search over your corpus and web_search for live facts.
+uv run argus --deep "How does our architecture handle retries?"
+```
+
+Ingest is Anthropic-style **Contextual Retrieval**: each chunk is prefixed with
+LLM-written context, embedded with `nomic-embed-text`, and indexed for both dense
+(HNSW) and lexical (FTS) search. A query fuses the two with Reciprocal Rank Fusion,
+with an optional `bge-reranker-v2-m3` cross-encoder stage
+(`ARGUS_RERANK_ENABLED=true`, needs `uv sync --extra rerank`). PDF/DOCX/PPTX ingest
+needs `uv sync --extra parse`. See [ADR 0001](docs/adr/0001-datastore-postgres-pgvector.md)
+for why pgvector is the single store.
+
 ## Development
 
 ```bash
@@ -79,14 +109,15 @@ CI runs format-check, lint, type-check, and tests on every push and pull request
 Each phase is independently demo-able and committable — the repo is a credible artifact at every
 phase boundary, not only at the end.
 
-- **Phase 0 — Spine** (this): hand-written loop + tool registry + budget + one search tool, green CI.
-- **Phase 1 — Real agent loop**: web-fetch/extract, the 5-step retry/fallback ladder, prompt
-  assembly with cache breakpoints, Redis state, OpenTelemetry traces you can see.
-- **Phase 2 — Multi-agent**: planner / searcher / synthesizer roles, then distributed over an
-  ARQ-on-Redis work queue; aggregator-as-judge synthesis.
-- **Phase 2b — Contextual RAG**: ingest documents into PostgreSQL + pgvector; local contextual
-  retrieval (nomic-embed + hybrid HNSW/FTS + RRF + a bge cross-encoder rerank) exposed as a
-  `rag_search` tool the agent uses alongside `web_search`. Embeddings + rerank run locally.
+- **Phase 0 — Spine** ✅: hand-written loop + tool registry + budget + one search tool, green CI.
+- **Phase 1 — Real agent loop** (in progress): web-fetch/extract ✅; still to come — the 5-step
+  retry/fallback ladder, prompt assembly with cache breakpoints, Redis state, OpenTelemetry traces.
+- **Phase 2 — Multi-agent** ✅ (in-process): planner / searcher / synthesizer with reflect/replan;
+  next, distribute the searchers over an ARQ-on-Redis work queue.
+- **Phase 2b — Contextual RAG** ✅: `argus ingest` builds a PostgreSQL + pgvector corpus with
+  Anthropic-style contextual retrieval (nomic-embed + hybrid HNSW/FTS + RRF, optional bge
+  cross-encoder rerank), exposed as a `rag_search` tool the agent uses alongside `web_search`.
+  Embeddings + rerank run locally.
 - **Phase 3 — Eval as a CI gate**: golden set + RAGAS retrieval metrics + κ-calibrated LLM-judge +
   a regression gate that blocks merges; self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
 - **Phase 4 — Kubernetes + KEDA**: queue-depth scale-from-zero of lightweight searcher pods; the
