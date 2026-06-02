@@ -25,6 +25,23 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Blinking caret shown at the end of the streaming answer. */
+.argus-cursor {
+  display: inline-block;
+  width: 0.5rem;
+  height: 1.05rem;
+  margin-left: 1px;
+  transform: translateY(2px);
+  background: currentColor;
+  opacity: 0.7;
+  animation: argus-blink 1s steps(2, start) infinite;
+}
+@keyframes argus-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 /* Lightweight prose styling for the streamed Markdown answer (no typography plugin). */
 .answer-prose {
   line-height: 1.65;

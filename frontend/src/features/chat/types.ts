@@ -10,6 +10,7 @@ export interface AgentEvent {
     | "tool"
     | "synthesize"
     | "reflect"
+    | "token"
     | "answer"
     | "error"
     | "done";

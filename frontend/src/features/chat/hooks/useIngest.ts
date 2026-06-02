@@ -7,39 +7,73 @@ import { logger } from "@/shared/lib/logger";
 
 type IngestStatus = "idle" | "loading" | "done" | "error";
 
-interface Ingest {
-  ingest: (source: string) => Promise<void>;
-  status: IngestStatus;
-  message: string;
+export interface IngestedSource {
+  label: string;
+  chunks: number;
 }
 
-// POSTs a file path or URL to /api/ingest and reports how many chunks landed.
+interface Ingest {
+  ingestUrl: (source: string) => Promise<void>;
+  uploadFile: (file: File) => Promise<void>;
+  status: IngestStatus;
+  error: string | null;
+  sources: IngestedSource[];
+}
+
+interface IngestResponse {
+  source_uri: string;
+  chunks_written: number;
+}
+
+// Ingest by URL/path (JSON) or by uploading a file (multipart). Successful
+// ingests accumulate as chips the UI can show.
 export function useIngest(): Ingest {
   const [status, setStatus] = useState<IngestStatus>("idle");
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [sources, setSources] = useState<IngestedSource[]>([]);
 
-  const ingest = async (source: string): Promise<void> => {
+  async function record(response: Response): Promise<void> {
+    if (!response.ok) throw new Error(`ingest failed: HTTP ${response.status}`);
+    const data = (await response.json()) as IngestResponse;
+    setSources((prev) => [
+      { label: data.source_uri, chunks: data.chunks_written },
+      ...prev,
+    ]);
+    setStatus("done");
+  }
+
+  async function guard(run: () => Promise<void>): Promise<void> {
     setStatus("loading");
-    setMessage("");
+    setError(null);
     try {
+      await run();
+    } catch (caught) {
+      logger.error("ingest failed", caught);
+      setError(caught instanceof Error ? caught.message : "unknown error");
+      setStatus("error");
+    }
+  }
+
+  const ingestUrl = (source: string): Promise<void> =>
+    guard(async () => {
       const response = await fetch(`${API_BASE}/api/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source }),
       });
-      if (!response.ok) throw new Error(`ingest failed: HTTP ${response.status}`);
-      const data = (await response.json()) as {
-        source_uri: string;
-        chunks_written: number;
-      };
-      setStatus("done");
-      setMessage(`ingested ${data.chunks_written} chunks from ${data.source_uri}`);
-    } catch (caught) {
-      logger.error("ingest failed", caught);
-      setStatus("error");
-      setMessage(caught instanceof Error ? caught.message : "unknown error");
-    }
-  };
+      await record(response);
+    });
 
-  return { ingest, status, message };
+  const uploadFile = (file: File): Promise<void> =>
+    guard(async () => {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`${API_BASE}/api/ingest/upload`, {
+        method: "POST",
+        body: form,
+      });
+      await record(response);
+    });
+
+  return { ingestUrl, uploadFile, status, error, sources };
 }

@@ -8,6 +8,7 @@ import { logger } from "@/shared/lib/logger";
 import type { AgentEvent, ChatStatus } from "../types";
 
 interface ChatStream {
+  question: string;
   events: AgentEvent[];
   answer: string;
   status: ChatStatus;
@@ -16,17 +17,23 @@ interface ChatStream {
   cancel: () => void;
 }
 
-// Streams POST /api/ask as Server-Sent Events: the answer is collected
-// separately from the progress events so the UI can render the live agent
-// activity and the final answer independently.
+// A fresh token run starts after each of these phase events, so the answer
+// buffer is cleared and only the final contiguous stream is shown.
+const RESETS_ANSWER = new Set(["plan", "tool", "synthesize"]);
+
+// Streams POST /api/ask as Server-Sent Events. Progress events drive the steps
+// view; `token` events stream the answer; the final `answer` event is
+// authoritative. The frame parser tolerates both LF and CRLF delimiters.
 export function useChatStream(): ChatStream {
+  const [question, setQuestion] = useState("");
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const ask = useCallback(async (question: string, deep: boolean) => {
+  const ask = useCallback(async (text: string, deep: boolean) => {
+    setQuestion(text);
     setEvents([]);
     setAnswer("");
     setError(null);
@@ -40,7 +47,7 @@ export function useChatStream(): ChatStream {
       const response = await fetch(`${API_BASE}/api/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, deep }),
+        body: JSON.stringify({ question: text, deep }),
         signal: controller.signal,
       });
       if (!response.ok || response.body === null) {
@@ -55,16 +62,14 @@ export function useChatStream(): ChatStream {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split("\n\n");
+        const frames = buffer.split(/\r?\n\r?\n/);
         buffer = frames.pop() ?? "";
         for (const frame of frames) {
-          const dataLine = frame
-            .split("\n")
-            .find((line) => line.startsWith("data:"));
-          if (dataLine === undefined) continue;
-          const payload = dataLine.slice("data:".length).trim();
-          if (payload.length === 0) continue;
-          applyEvent(JSON.parse(payload) as AgentEvent);
+          for (const line of frame.split(/\r?\n/)) {
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice("data:".length).trim();
+            if (payload.length > 0) applyEvent(JSON.parse(payload) as AgentEvent);
+          }
         }
       }
       setStatus((current) => (current === "error" ? current : "done"));
@@ -77,21 +82,29 @@ export function useChatStream(): ChatStream {
     }
 
     function applyEvent(event: AgentEvent): void {
-      if (event.type === "answer" && typeof event.text === "string") {
-        setAnswer(event.text);
-      } else if (event.type === "error") {
+      if (event.type === "token") {
+        if (typeof event.text === "string") setAnswer((prev) => prev + event.text);
+        return;
+      }
+      if (event.type === "answer") {
+        if (typeof event.text === "string") setAnswer(event.text);
+        return;
+      }
+      if (event.type === "error") {
         setError(event.message ?? "agent error");
         setStatus("error");
-      } else if (event.type !== "done") {
-        setEvents((previous) => [...previous, event]);
+        return;
       }
+      if (event.type === "done") return;
+      if (RESETS_ANSWER.has(event.type)) setAnswer("");
+      setEvents((prev) => [...prev, event]);
     }
   }, []);
 
   const cancel = useCallback(() => {
     controllerRef.current?.abort();
-    setStatus("idle");
+    setStatus((current) => (current === "streaming" ? "done" : current));
   }, []);
 
-  return { events, answer, status, error, ask, cancel };
+  return { question, events, answer, status, error, ask, cancel };
 }
