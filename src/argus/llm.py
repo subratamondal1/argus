@@ -32,9 +32,13 @@ class LLMResponse:
 
 
 class LLMClient:
-    def __init__(self, *, model: str, timeout_s: float) -> None:
+    def __init__(self, *, model: str, timeout_s: float, temperature: float | None = None) -> None:
         self._model: str = model
         self._timeout: float = timeout_s
+        self._temperature: float | None = temperature
+
+    def _sampling_kwargs(self) -> dict[str, Any]:
+        return {} if self._temperature is None else {"temperature": self._temperature}
 
     async def complete(
         self,
@@ -46,6 +50,7 @@ class LLMClient:
             messages=messages,
             tools=tools,
             timeout=self._timeout,
+            **self._sampling_kwargs(),
         )
 
         message: Any = response.choices[0].message
@@ -79,6 +84,7 @@ class LLMClient:
             messages=messages,
             response_format=schema,
             timeout=self._timeout,
+            **self._sampling_kwargs(),
         )
         content: str = response.choices[0].message.content or "{}"
         return schema.model_validate_json(content)

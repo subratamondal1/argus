@@ -43,6 +43,9 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
     thresholds = load_thresholds(thresholds_path)
 
     llm = LLMClient(model=settings.model, timeout_s=settings.request_timeout_s)
+    judge_llm = LLMClient(
+        model=settings.model, timeout_s=settings.request_timeout_s, temperature=0.0
+    )
     registry = ToolRegistry()
     register_web_search(registry)
     register_web_fetch(registry)
@@ -65,7 +68,7 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
         return result.answer
 
     async def _judge(question: str, answer: str, context: str) -> Verdict:
-        return await judge_answer(llm, question=question, answer=answer, context=context)
+        return await judge_answer(judge_llm, question=question, answer=answer, context=context)
 
     try:
         for source in _SOURCES:
