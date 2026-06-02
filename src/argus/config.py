@@ -45,6 +45,13 @@ class Settings(BaseSettings):
         default="ollama/nomic-embed-text",
         description="Local embedding model (768-dim), served by native Ollama.",
     )
+    context_model: str | None = Field(
+        default=None,
+        description=(
+            "LLM for contextual-retrieval prefixes at ingest time; defaults to `model`. "
+            "Point at a local model (e.g. ollama_chat/qwen3:14b) for cheap bulk contextualization."
+        ),
+    )
     rerank_model: str = Field(
         default="BAAI/bge-reranker-v2-m3",
         description="Cross-encoder reranker, run in-process via sentence-transformers.",

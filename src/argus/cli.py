@@ -13,8 +13,10 @@ from argus.agent.loop import AgentLoop
 from argus.agent.orchestrator import Orchestrator
 from argus.agent.prompts import research_system_prompt
 from argus.config import Settings, get_settings
+from argus.db import close_pool
 from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
+from argus.rag.ingest import ingest_source
 from argus.tools.registry import ToolRegistry
 from argus.tools.web_fetch import register_web_fetch
 from argus.tools.web_search import register_web_search
@@ -75,8 +77,18 @@ async def _run(question: str, *, deep: bool) -> int:
     return 0
 
 
-def main() -> None:
-    load_dotenv()
+async def _run_ingest(source: str, *, corpus: str, corpus_version: str) -> int:
+    log = get_logger(__name__)
+    try:
+        result = await ingest_source(source, corpus=corpus, corpus_version=corpus_version)
+    finally:
+        await close_pool()
+    sys.stdout.write(f"ingested {result.chunks_written} chunks from {result.source_uri}\n")
+    log.info("done", mode="ingest", source=result.source_uri, chunks=result.chunks_written)
+    return 0
+
+
+def _main_ask(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="argus", description="Ask Argus a research question.")
     parser.add_argument("question", help="The research question to answer.")
     parser.add_argument(
@@ -84,11 +96,33 @@ def main() -> None:
         action="store_true",
         help="Use the multi-agent orchestrator (plan, search, synthesize, reflect).",
     )
-    arguments = parser.parse_args()
+    arguments = parser.parse_args(argv)
+    return asyncio.run(_run(arguments.question, deep=arguments.deep))
 
+
+def _main_ingest(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="argus ingest", description="Ingest a document (path or URL) into the local corpus."
+    )
+    parser.add_argument("source", help="A file path or URL to ingest.")
+    parser.add_argument("--corpus", default="default", help="Corpus name to ingest into.")
+    parser.add_argument("--corpus-version", default="v1", help="Corpus version tag.")
+    arguments = parser.parse_args(argv)
+    return asyncio.run(
+        _run_ingest(
+            arguments.source, corpus=arguments.corpus, corpus_version=arguments.corpus_version
+        )
+    )
+
+
+def main() -> None:
+    load_dotenv()
     settings = get_settings()
     configure_logging(level=settings.log_level, json=settings.log_json)
-    raise SystemExit(asyncio.run(_run(arguments.question, deep=arguments.deep)))
+    argv: list[str] = sys.argv[1:]
+    if argv and argv[0] == "ingest":
+        raise SystemExit(_main_ingest(argv[1:]))
+    raise SystemExit(_main_ask(argv))
 
 
 if __name__ == "__main__":
