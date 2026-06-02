@@ -103,16 +103,20 @@ agent answer, and exits non-zero when the aggregate metrics fall below
 
 ```bash
 docker compose --profile data up -d   # needs the data stack + an LLM
-make eval                             # -> eval PASS/FAIL with hit@k, precision@k, mrr, judge_pass_rate
+make eval                             # the gate: hit@k, precision@k, mrr, judge_pass_rate, keyword_pass_rate
+make eval-calibrate                   # prove the judge agrees with humans (Cohen's κ ≥ floor)
 ```
 
 - **Retrieval metrics** — hit@k, precision@k, and mean reciprocal rank, scored
   against each question's relevant sources. Implemented in-repo
   ([`eval/metrics.py`](src/argus/eval/metrics.py)), not via RAGAS, to stay
   dependency-light and offline-capable.
-- **LLM judge** — a second model rules each answer correct-and-grounded or not.
-  A judge is only trusted once **Cohen's κ** against human labels clears the
-  floor; the κ helper lives alongside the retrieval metrics.
+- **LLM judge** — a second model (run at temperature 0 so the gate doesn't flap)
+  rules each answer correct-and-grounded, separate from a normalized keyword
+  grounding check. `make eval-calibrate` runs the judge over a human-labelled set
+  ([`eval/judge_calibration.jsonl`](eval/judge_calibration.jsonl)) and reports
+  **Cohen's κ** — chance-corrected agreement, so a rubber-stamp judge is exposed
+  (its κ collapses) — failing below the κ floor.
 - **CI split** — the metric/runner/judge *logic* is unit-tested in hermetic CI
   (no DB, no API key); the *live* gate runs from `make eval` against the stack,
   and slots into CI as a stack-provisioned job in a later phase.
@@ -145,7 +149,8 @@ phase boundary, not only at the end.
   Embeddings + rerank run locally.
 - **Phase 3 — Eval gate** ✅ (live; CI job next): `argus eval` runs a golden set through real
   retrieval + a judged answer, with in-repo retrieval metrics (hit@k / precision@k / MRR) and a
-  κ-calibratable LLM judge, failing below committed thresholds. Still to come — wiring it as a
+  temperature-0, **κ-calibrated** LLM judge (`make eval-calibrate`), failing below committed
+  thresholds. Still to come — wiring it as a
   stack-provisioned CI job and self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
 - **Phase 4 — Kubernetes + KEDA**: queue-depth scale-from-zero of lightweight searcher pods; the
   0→N→0 autoscale curve under a reproducible load test; chaos-kill proof of no dropped work.
