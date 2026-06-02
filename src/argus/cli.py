@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -14,19 +15,31 @@ from argus.config import get_settings
 from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
 from argus.tools.registry import ToolRegistry
+from argus.tools.web_fetch import register_web_fetch
 from argus.tools.web_search import register_web_search
 
-SYSTEM_PROMPT: str = (
-    "You are Argus, a careful research assistant. Use the web_search tool to find "
-    "current, factual information before answering. Cite the URLs you relied on. "
-    "If the tools cannot answer the question, say so plainly rather than guessing."
-)
+
+def _system_prompt() -> str:
+    today: str = datetime.now().strftime("%Y-%m-%d")
+    return (
+        f"You are Argus, a careful research assistant. Today's date is {today}. "
+        "Your workflow: call web_search to find relevant sources, then call web_fetch "
+        "to read the most authoritative result before answering. Search snippets are "
+        "often stale or incomplete, so verify claims against fetched page content. "
+        "For 'latest' or 'most recent' questions, be skeptical: a single announcement "
+        "page often calls itself 'our latest' even when a newer one exists, so prefer "
+        "a comprehensive overview, listing, or changelog page, cross-check at least two "
+        "sources, and choose the one with the newest date or the highest version number. "
+        "Cite the URLs you relied on. If the tools cannot answer, say so plainly rather "
+        "than guessing."
+    )
 
 
 def build_loop() -> AgentLoop:
     settings = get_settings()
     registry = ToolRegistry()
     register_web_search(registry)
+    register_web_fetch(registry)
     return AgentLoop(
         registry=registry,
         llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
@@ -36,7 +49,7 @@ def build_loop() -> AgentLoop:
             max_wallclock_s=settings.max_wallclock_s,
             max_cost_usd=settings.max_cost_usd,
         ),
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=_system_prompt(),
     )
 
 
