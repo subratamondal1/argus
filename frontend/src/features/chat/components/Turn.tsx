@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 
 import type { Turn as TurnModel } from "../store";
 import { Answer } from "./Answer";
+import { Sources } from "./Sources";
 import { Steps } from "./Steps";
 
 export function Turn({ turn }: { turn: TurnModel }) {
@@ -12,6 +13,7 @@ export function Turn({ turn }: { turn: TurnModel }) {
         {turn.question}
       </h2>
       <Steps events={turn.events} streaming={streaming} />
+      {!streaming && <Sources text={turn.answer} />}
       <Answer text={turn.answer} streaming={streaming} />
       {streaming && turn.answer.length === 0 && (
         <div className="flex items-center gap-2 text-sm text-zinc-400">
