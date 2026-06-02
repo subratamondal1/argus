@@ -15,3 +15,26 @@ services:
     environment:
       - SEARXNG_BASE_URL=http://localhost:${ARGUS_SEARXNG_PORT:-8080}/
     restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: argus-postgres
+    profiles: ["data"]
+    environment:
+      POSTGRES_USER: argus
+      POSTGRES_PASSWORD: argus
+      POSTGRES_DB: argus
+    ports:
+      - "${ARGUS_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - argus-pgdata:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argus -d argus"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  argus-pgdata:

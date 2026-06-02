@@ -31,6 +31,29 @@ class Settings(BaseSettings):
         default=180.0, gt=0, description="Maximum wall-clock seconds per run."
     )
     max_cost_usd: float = Field(default=0.50, gt=0, description="Hard cost cap per run in USD.")
+
+    # --- Datastore + RAG (PostgreSQL + pgvector; embeddings/rerank are local) ---
+    database_url: str = Field(
+        default="postgresql://argus:argus@localhost:5432/argus",
+        description="PostgreSQL connection URL (asyncpg).",
+    )
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        description="Native Ollama server for local embeddings and the offline LLM.",
+    )
+    embedding_model: str = Field(
+        default="ollama/nomic-embed-text",
+        description="Local embedding model (768-dim), served by native Ollama.",
+    )
+    rerank_model: str = Field(
+        default="BAAI/bge-reranker-v2-m3",
+        description="Cross-encoder reranker, run in-process via sentence-transformers.",
+    )
+    rag_enabled: bool = Field(default=True, description="Register the rag_search tool.")
+    rerank_enabled: bool = Field(
+        default=False, description="Enable the cross-encoder rerank stage."
+    )
+
     log_level: str = Field(default="INFO")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 

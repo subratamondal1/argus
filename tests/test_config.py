@@ -25,3 +25,10 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_searxng_url_composed_from_host_and_port() -> None:
     settings = Settings(searxng_host="localhost", searxng_port=8085)
     assert settings.searxng_url == "http://localhost:8085"
+
+
+def test_rag_defaults() -> None:
+    assert str(Settings.model_fields["database_url"].default).startswith("postgresql://")
+    assert str(Settings.model_fields["embedding_model"].default).startswith("ollama/")
+    assert Settings.model_fields["rag_enabled"].default is True
+    assert Settings.model_fields["rerank_enabled"].default is False
