@@ -10,6 +10,7 @@ status:
 	python3 scripts/devstack.py status
 
 ask:
+	@test -n "$(Q)" || { echo 'usage: make ask Q="your question"'; exit 1; }
 	uv run argus "$(Q)"
 
 format:
