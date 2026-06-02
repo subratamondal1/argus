@@ -42,7 +42,7 @@ export function ChatPage() {
             ) : (
               <div className="py-6">
                 {turns.map((turn) => (
-                  <Turn key={turn.id} turn={turn} />
+                  <Turn key={turn.id} turn={turn} onFollowUp={(question) => ask(question, false)} />
                 ))}
                 <div ref={bottomRef} />
               </div>

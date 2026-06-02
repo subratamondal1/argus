@@ -48,6 +48,11 @@ async def test_ask_streams_progress_then_answer_then_done(
 ) -> None:
     monkeypatch.setattr(web, "build_loop", lambda: _FakeLoop())
 
+    async def fake_related(question: str, answer: str) -> list[str]:
+        return ["a follow-up question?"]
+
+    monkeypatch.setattr(web, "_related_questions", fake_related)
+
     events: list[dict[str, Any]] = []
     async with (
         _client() as client,
@@ -65,6 +70,7 @@ async def test_ask_streams_progress_then_answer_then_done(
     assert "tool" in kinds
     assert "token" in kinds
     assert "answer" in kinds
+    assert "related" in kinds
     assert kinds[-1] == "done"
     answer = next(event for event in events if event["type"] == "answer")
     assert answer["text"] == "the grounded answer"

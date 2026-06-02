@@ -12,10 +12,12 @@ export interface AgentEvent {
     | "reflect"
     | "token"
     | "answer"
+    | "related"
     | "error"
     | "done";
   sub_question?: string;
   sub_questions?: string[];
+  questions?: string[];
   name?: string;
   query?: string;
   n?: number;

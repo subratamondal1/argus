@@ -24,13 +24,35 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from argus.agent.events import AgentEvent
+from argus.agent.prompts import related_questions_messages
 from argus.builders import build_loop, build_orchestrator
 from argus.config import get_settings
 from argus.db import close_pool
+from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import ingest_source
 
 log = get_logger(__name__)
+
+
+class _Related(BaseModel):
+    questions: list[str]
+
+
+async def _related_questions(question: str, answer: str) -> list[str]:
+    if not answer.strip():
+        return []
+    settings = get_settings()
+    llm = LLMClient(model=settings.model, timeout_s=settings.request_timeout_s)
+    try:
+        result = await llm.complete_structured(
+            related_questions_messages(question, answer), _Related
+        )
+    except Exception as error:
+        log.debug("related_failed", error=str(error))
+        return []
+    return [item for item in result.questions if item.strip()][:4]
+
 
 _ALLOWED_ORIGINS: list[str] = [
     "http://localhost:3000",
@@ -95,10 +117,15 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
     async def run() -> None:
         try:
             if request.deep:
-                await build_orchestrator().run(request.question, on_event=sink)
+                report = await build_orchestrator().run(request.question, on_event=sink)
+                answer = report.answer
             else:
                 result = await build_loop().run(request.question, on_event=sink, stream_tokens=True)
-                await sink(AgentEvent("answer", {"text": result.answer}))
+                answer = result.answer
+                await sink(AgentEvent("answer", {"text": answer}))
+            related = await _related_questions(request.question, answer)
+            if related:
+                await sink(AgentEvent("related", {"questions": related}))
         except Exception as error:
             await sink(AgentEvent("error", {"message": f"{type(error).__name__}: {error}"}))
         finally:

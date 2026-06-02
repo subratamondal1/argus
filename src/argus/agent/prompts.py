@@ -71,3 +71,17 @@ def reflection_messages(question: str, draft: str) -> list[dict[str, str]]:
         {"role": "system", "content": _REFLECTION_SYSTEM},
         {"role": "user", "content": f"Question: {question}\n\nDraft answer:\n{draft}"},
     ]
+
+
+_RELATED_SYSTEM: str = (
+    "Given a question and its answer, suggest the 3 most likely follow-up questions "
+    "the user would ask next. Each must be specific, self-contained, and under 12 words. "
+    "Return only the questions."
+)
+
+
+def related_questions_messages(question: str, answer: str) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": _RELATED_SYSTEM},
+        {"role": "user", "content": f"Question: {question}\n\nAnswer:\n{answer[:2000]}"},
+    ]

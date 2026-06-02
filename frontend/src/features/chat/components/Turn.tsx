@@ -2,10 +2,17 @@ import { Loader2 } from "lucide-react";
 
 import type { Turn as TurnModel } from "../store";
 import { Answer } from "./Answer";
+import { Related } from "./Related";
 import { Sources } from "./Sources";
 import { Steps } from "./Steps";
 
-export function Turn({ turn }: { turn: TurnModel }) {
+export function Turn({
+  turn,
+  onFollowUp,
+}: {
+  turn: TurnModel;
+  onFollowUp: (question: string) => void;
+}) {
   const streaming = turn.status === "streaming";
   return (
     <article className="border-b border-zinc-200/50 py-7 first:pt-2 last:border-0 dark:border-zinc-800/40">
@@ -25,6 +32,7 @@ export function Turn({ turn }: { turn: TurnModel }) {
           {turn.error}
         </p>
       )}
+      {!streaming && <Related questions={turn.related ?? []} onPick={onFollowUp} />}
     </article>
   );
 }

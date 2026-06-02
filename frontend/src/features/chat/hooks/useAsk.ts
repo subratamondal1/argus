@@ -33,6 +33,7 @@ export function useAsk(): Ask {
       deep,
       events: [],
       answer: "",
+      related: [],
       status: "streaming",
       error: null,
     });
@@ -49,6 +50,10 @@ export function useAsk(): Ask {
       if (event.type === "answer") {
         answer = event.text ?? answer;
         patch(conversationId, turnId, { answer });
+        return;
+      }
+      if (event.type === "related") {
+        patch(conversationId, turnId, { related: event.questions ?? [] });
         return;
       }
       if (event.type === "error") {

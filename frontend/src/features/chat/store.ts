@@ -11,6 +11,7 @@ export interface Turn {
   deep: boolean;
   events: AgentEvent[];
   answer: string;
+  related: string[];
   status: ChatStatus;
   error: string | null;
 }
