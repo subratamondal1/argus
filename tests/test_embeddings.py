@@ -26,7 +26,13 @@ async def test_empty_input_skips_the_network() -> None:
     assert await embed_texts([], task=EmbedTask.QUERY) == []
 
 
-async def test_embed_calls_ollama_with_prefixed_input_and_returns_768d() -> None:
+async def test_embed_calls_ollama_with_prefixed_input_and_returns_768d(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_settings() -> Any:
+        return get_settings().model_copy(update={"embedding_model": "ollama/nomic-embed-text"})
+
+    monkeypatch.setattr(embeddings_mod, "get_settings", fake_settings)
     settings = get_settings()
     with respx.mock:
         route = respx.post(f"{settings.ollama_base_url}/api/embed").mock(
