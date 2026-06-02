@@ -10,6 +10,7 @@ import orjson
 from pydantic import BaseModel
 
 from argus.agent.budget import Budget, BudgetState, BudgetStop
+from argus.agent.events import EventSink, emit
 from argus.llm import LLMResponse
 from argus.logging import get_logger
 from argus.tools.registry import Approver, ToolCall, ToolRegistry, ToolResult
@@ -72,7 +73,7 @@ class AgentLoop:
         self._system_prompt: str = system_prompt
         self._approver: Approver | None = approver
 
-    async def run(self, user_input: str) -> AgentResult:
+    async def run(self, user_input: str, *, on_event: EventSink | None = None) -> AgentResult:
         state: BudgetState = BudgetState(self._budget)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._system_prompt},
@@ -103,6 +104,13 @@ class AgentLoop:
                     tokens=state.tokens,
                     cost_usd=round(state.cost_usd, 4),
                     tool_calls=len(response.tool_calls),
+                )
+                await emit(
+                    on_event,
+                    "turn",
+                    n=state.turns,
+                    tool_calls=len(response.tool_calls),
+                    cost_usd=round(state.cost_usd, 4),
                 )
 
                 if not response.tool_calls:

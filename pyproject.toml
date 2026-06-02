@@ -18,6 +18,9 @@ dependencies = [
     "trafilatura>=1.12",   # extract main page text for web_fetch + URL/HTML ingest
     "asyncpg>=0.30",       # async PostgreSQL driver for the pgvector datastore
     "pgvector>=0.4",       # vector type registration for asyncpg
+    "fastapi>=0.115",      # HTTP API for the web UI
+    "uvicorn[standard]>=0.32", # ASGI server for `argus serve`
+    "sse-starlette>=2.1",  # Server-Sent Events for streaming agent progress
 ]
 
 [project.optional-dependencies]
