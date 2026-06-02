@@ -1,0 +1,16 @@
+# Local backing services for Argus. Phase 0 needs only SearXNG (the search tool's
+# backend). Phase 1+ add the OTel collector + Grafana/Tempo; Phase 2 adds NATS +
+# Redis + Postgres. Kept as one file so `docker compose up` stands the whole
+# local system in one command.
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: argus-searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    restart: unless-stopped
