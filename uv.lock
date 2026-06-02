@@ -165,6 +165,7 @@ dependencies = [
     { name = "orjson" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "python-dotenv" },
     { name = "structlog" },
 ]
 
@@ -184,6 +185,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.10" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "structlog", specifier = ">=24.4" },
 ]
 

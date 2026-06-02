@@ -14,6 +14,7 @@ dependencies = [
     "structlog>=24.4",     # structured logging (NEVER print)
     "orjson>=3.10",        # fast JSON
     "httpx>=0.28",         # async HTTP for the SearXNG search tool
+    "python-dotenv>=1.0",  # load .env provider keys into the environment for LiteLLM
 ]
 
 [project.scripts]

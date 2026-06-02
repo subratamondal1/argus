@@ -6,6 +6,8 @@ import argparse
 import asyncio
 import sys
 
+from dotenv import load_dotenv
+
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop, AgentResult
 from argus.config import get_settings
@@ -52,6 +54,7 @@ async def _run(question: str) -> int:
 
 
 def main() -> None:
+    load_dotenv()
     parser = argparse.ArgumentParser(prog="argus", description="Ask Argus a research question.")
     parser.add_argument("question", help="The research question to answer.")
     arguments = parser.parse_args()
