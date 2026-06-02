@@ -68,3 +68,17 @@ async def test_api_model_routes_through_litellm_with_dimensions(
     assert captured["model"] == "openai/text-embedding-3-small"
     assert captured["dimensions"] == 768
     assert captured["input"] == ["hello"]
+
+
+async def test_unreachable_ollama_raises_actionable_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_settings() -> Any:
+        return get_settings().model_copy(update={"embedding_model": "ollama/nomic-embed-text"})
+
+    async def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(embeddings_mod, "get_settings", fake_settings)
+    monkeypatch.setattr(embeddings_mod, "_embed_via_ollama", refuse)
+
+    with pytest.raises(RuntimeError, match="Ollama"):
+        await embed_texts(["hi"], task=EmbedTask.QUERY)

@@ -65,9 +65,13 @@ async def _embed_local(
             base_url=settings.ollama_base_url,
             timeout_s=settings.request_timeout_s,
         )
-    except (httpx.HTTPError, KeyError) as error:
-        log.warning("ollama_embed_failed_falling_back", error=str(error))
-        return await _embed_via_litellm(inputs, model=settings.embedding_model, dimensions=None)
+    except (httpx.HTTPError, KeyError, ValueError) as error:
+        model_tag: str = settings.embedding_model.removeprefix("ollama/")
+        raise RuntimeError(
+            f"cannot get embeddings from Ollama at {settings.ollama_base_url} "
+            f"({type(error).__name__}). Start Ollama and run `ollama pull {model_tag}`, or set "
+            f"ARGUS_EMBEDDING_MODEL to an API model (e.g. openai/text-embedding-3-small)."
+        ) from error
 
 
 async def _embed_via_ollama(

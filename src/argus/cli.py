@@ -151,16 +151,24 @@ def _main_eval(argv: list[str]) -> int:
     return 0 if report.passed else 1
 
 
+def _dispatch(argv: list[str]) -> int:
+    if argv and argv[0] == "ingest":
+        return _main_ingest(argv[1:])
+    if argv and argv[0] == "eval":
+        return _main_eval(argv[1:])
+    return _main_ask(argv)
+
+
 def main() -> None:
     load_dotenv()
     settings = get_settings()
     configure_logging(level=settings.log_level, json=settings.log_json)
-    argv: list[str] = sys.argv[1:]
-    if argv and argv[0] == "ingest":
-        raise SystemExit(_main_ingest(argv[1:]))
-    if argv and argv[0] == "eval":
-        raise SystemExit(_main_eval(argv[1:]))
-    raise SystemExit(_main_ask(argv))
+    try:
+        code: int = _dispatch(sys.argv[1:])
+    except RuntimeError as error:
+        sys.stderr.write(f"error: {error}\n")
+        raise SystemExit(1) from error
+    raise SystemExit(code)
 
 
 if __name__ == "__main__":
