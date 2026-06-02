@@ -45,29 +45,34 @@ Argus implements each as a readable module; this table tracks where each one sta
 ## Quickstart (Phase 0)
 
 ```bash
-# 1. Stand up the search backend (self-hosted SearXNG, no API key).
-docker compose up -d
-
-# 2. Install (uv manages the Python 3.12 toolchain and the venv).
+# 1. Install (uv manages the Python 3.12 toolchain and the venv).
 uv sync
 
-# 3. Point LiteLLM at a provider.
-cp .env.example .env && $EDITOR .env   # set ANTHROPIC_API_KEY (or another provider)
+# 2. Point LiteLLM at a provider.
+cp .env.example .env && nano .env   # set ANTHROPIC_API_KEY (or another provider)
+
+# 3. Start the local stack (self-hosted SearXNG, no API key).
+#    Picks the first free port from 8080, writes it to .env, and is idempotent:
+#    run it again and it just reports the live URL instead of starting a duplicate.
+make up
 
 # 4. Ask Argus a question.
-uv run argus "What changed in the EU AI Act timeline in 2026?"
+uv run argus "What changed in the EU AI Act timeline in 2026?"   # or: make ask Q="..."
+
+# Stack controls: `make status` (is it up, and where) · `make down` (stop it).
 ```
 
 ## Development
 
 ```bash
-uv run ruff format .     # format
-uv run ruff check .      # lint
-uv run ty check          # type-check
-uv run pytest            # tests (no network; the LLM and SearXNG are faked)
+make format      # ruff format
+make lint        # ruff check
+make typecheck   # ty check
+make test        # pytest (no network; the LLM and SearXNG are faked)
+make ci          # format-check + lint + typecheck + test (what CI runs)
 ```
 
-CI runs all four on every push and pull request.
+CI runs format-check, lint, type-check, and tests on every push and pull request.
 
 ## Build roadmap
 
