@@ -15,8 +15,17 @@ dependencies = [
     "orjson>=3.10",        # fast JSON
     "httpx>=0.28",         # async HTTP for the SearXNG search tool + web_fetch
     "python-dotenv>=1.0",  # load .env provider keys into the environment for LiteLLM
-    "trafilatura>=1.12",   # extract main page text for the web_fetch tool
+    "trafilatura>=1.12",   # extract main page text for web_fetch + URL/HTML ingest
+    "asyncpg>=0.30",       # async PostgreSQL driver for the pgvector datastore
+    "pgvector>=0.4",       # vector type registration for asyncpg
 ]
+
+[project.optional-dependencies]
+# Heavy, lazily-imported extras. Core ingest (URL/HTML/Markdown) and the default
+# rag_search path work without them; install when you need PDF/Office parsing or
+# the cross-encoder rerank stage:  uv sync --extra parse --extra rerank
+parse = ["docling>=2.96"]                  # PDF/DOCX/PPTX -> Markdown for ingest
+rerank = ["sentence-transformers>=5.5"]    # bge-reranker-v2-m3 cross-encoder stage
 
 [project.scripts]
 argus = "argus.cli:main"
