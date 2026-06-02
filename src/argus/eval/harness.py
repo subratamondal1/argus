@@ -19,7 +19,8 @@ from argus.agent.loop import AgentLoop
 from argus.agent.prompts import research_system_prompt
 from argus.config import get_settings
 from argus.db import close_pool
-from argus.eval.dataset import load_golden, load_thresholds
+from argus.eval.calibration import CalibrationResult, calibrate
+from argus.eval.dataset import load_calibration, load_golden, load_thresholds
 from argus.eval.judge import Verdict, judge_answer
 from argus.eval.runner import EvalReport, evaluate
 from argus.llm import LLMClient
@@ -83,6 +84,20 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
     await asyncio.to_thread(report_path.write_bytes, data)
     log.info("eval_done", passed=report.passed, n=report.n, failures=report.failures)
     return report
+
+
+async def run_calibration(calibration_path: Path, thresholds_path: Path) -> CalibrationResult:
+    settings = get_settings()
+    items = load_calibration(calibration_path)
+    thresholds = load_thresholds(thresholds_path)
+    judge_llm = LLMClient(
+        model=settings.model, timeout_s=settings.request_timeout_s, temperature=0.0
+    )
+
+    async def _judge(question: str, answer: str, context: str) -> Verdict:
+        return await judge_answer(judge_llm, question=question, answer=answer, context=context)
+
+    return await calibrate(items, judge=_judge, min_kappa=thresholds.min_judge_kappa)
 
 
 def _report_dict(report: EvalReport) -> dict[str, Any]:

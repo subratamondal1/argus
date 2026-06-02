@@ -15,7 +15,8 @@ from argus.agent.orchestrator import Orchestrator
 from argus.agent.prompts import research_system_prompt
 from argus.config import Settings, get_settings
 from argus.db import close_pool
-from argus.eval.harness import run_gate
+from argus.eval.calibration import CalibrationResult
+from argus.eval.harness import run_calibration, run_gate
 from argus.eval.runner import EvalReport
 from argus.llm import LLMClient
 from argus.logging import configure_logging, get_logger
@@ -135,6 +136,17 @@ def _format_eval(report: EvalReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_calibration(result: CalibrationResult) -> str:
+    status: str = "PASS" if result.passed else "FAIL"
+    lines: list[str] = [
+        f"judge calibration {status}  (n={result.n})",
+        f"  cohen_kappa  {result.kappa:.3f}",
+        f"  agreement    {result.agreement:.3f}",
+    ]
+    lines.extend(f"  - disagree: {item}" for item in result.disagreements)
+    return "\n".join(lines) + "\n"
+
+
 def _main_eval(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="argus eval", description="Run the golden-set eval gate against the live stack."
@@ -144,7 +156,21 @@ def _main_eval(argv: list[str]) -> int:
     parser.add_argument(
         "--report", default="eval/last_report.json", help="Where to write the report."
     )
+    parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Calibrate the judge against human labels (Cohen's kappa) instead of running the gate.",
+    )
+    parser.add_argument(
+        "--calibration", default="eval/judge_calibration.jsonl", help="Human-labelled judge set."
+    )
     arguments = parser.parse_args(argv)
+    if arguments.calibrate:
+        result = asyncio.run(
+            run_calibration(Path(arguments.calibration), Path(arguments.thresholds))
+        )
+        sys.stdout.write(_format_calibration(result))
+        return 0 if result.passed else 1
     report = asyncio.run(
         run_gate(Path(arguments.golden), Path(arguments.thresholds), Path(arguments.report))
     )

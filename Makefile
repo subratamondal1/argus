@@ -1,4 +1,4 @@
-.PHONY: up down status ask research eval format format-check lint typecheck test ci
+.PHONY: up down status ask research eval eval-calibrate format format-check lint typecheck test ci
 
 up:
 	python3 scripts/devstack.py up
@@ -19,6 +19,9 @@ research:
 
 eval:
 	uv run argus eval
+
+eval-calibrate:
+	uv run argus eval --calibrate
 
 format:
 	uv run ruff format .
