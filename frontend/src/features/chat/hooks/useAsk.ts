@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 
-import { API_BASE } from "@/shared/lib/api";
+import { API_BASE, friendlyError } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
 import { useChatStore } from "../store";
@@ -104,10 +104,7 @@ export function useAsk(): Ask {
         return;
       }
       logger.error("ask failed", caught);
-      patch(conversationId, turnId, {
-        error: caught instanceof Error ? caught.message : "unknown error",
-        status: "error",
-      });
+      patch(conversationId, turnId, { error: friendlyError(caught), status: "error" });
     }
   }, []);
 

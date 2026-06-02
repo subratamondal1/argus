@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Check, Link2, Loader2, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Check, Link2, Loader2, Paperclip, Square, X } from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
@@ -27,7 +27,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { ingestUrl, uploadFile, status, error, sources } = useIngest();
+  const { ingestUrl, uploadFile, clearError, status, error, sources } = useIngest();
 
   function send(): void {
     const question = value.trim();
@@ -82,9 +82,15 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             </span>
           ))}
           {error !== null && (
-            <span className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-600 dark:bg-red-950/50 dark:text-red-300">
+            <button
+              type="button"
+              onClick={clearError}
+              className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs text-red-600 transition hover:bg-red-100 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950"
+              title="Dismiss"
+            >
               {error}
-            </span>
+              <X className="h-3 w-3" />
+            </button>
           )}
         </div>
       )}

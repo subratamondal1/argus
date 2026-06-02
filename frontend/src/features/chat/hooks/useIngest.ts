@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { API_BASE } from "@/shared/lib/api";
+import { API_BASE, friendlyError } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
 type IngestStatus = "idle" | "loading" | "done" | "error";
@@ -15,6 +15,7 @@ export interface IngestedSource {
 interface Ingest {
   ingestUrl: (source: string) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
+  clearError: () => void;
   status: IngestStatus;
   error: string | null;
   sources: IngestedSource[];
@@ -49,7 +50,7 @@ export function useIngest(): Ingest {
       await run();
     } catch (caught) {
       logger.error("ingest failed", caught);
-      setError(caught instanceof Error ? caught.message : "unknown error");
+      setError(friendlyError(caught));
       setStatus("error");
     }
   }
@@ -75,5 +76,7 @@ export function useIngest(): Ingest {
       await record(response);
     });
 
-  return { ingestUrl, uploadFile, status, error, sources };
+  const clearError = (): void => setError(null);
+
+  return { ingestUrl, uploadFile, clearError, status, error, sources };
 }
