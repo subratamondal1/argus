@@ -16,13 +16,14 @@ log = get_logger(__name__)
 
 class WebSearchArgs(BaseModel):
     query: str = Field(description="The search query.")
-    max_results: int = Field(default=5, ge=1, le=10, description="How many results to return.")
+    max_results: int = Field(default=8, ge=1, le=15, description="How many results to return.")
 
 
 class SearchHit(BaseModel):
     title: str = Field(description="Result title.")
     url: str = Field(description="Result URL.")
     snippet: str = Field(description="Short content excerpt.")
+    published: str = Field(default="", description="Publication date, if the engine reports one.")
 
 
 class WebSearchResult(BaseModel):
@@ -52,6 +53,7 @@ def register_web_search(registry: ToolRegistry) -> None:
                 title=item.get("title", ""),
                 url=item.get("url", ""),
                 snippet=item.get("content", ""),
+                published=str(item.get("publishedDate") or ""),
             )
             for item in payload.get("results", [])[: args.max_results]
         ]
