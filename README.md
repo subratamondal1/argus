@@ -12,12 +12,13 @@ Argus is built to prove four things a single-agent app can't: **true horizontal 
 queue-depth autoscaling of lightweight agent pods), **multi-agent orchestration**, **sandboxed
 code execution**, and a **full, forkable LLMOps + eval pipeline**.
 
-> **Status: Phase 2b — contextual RAG.** The hand-written agent loop, permission-gated tool
-> registry, and 3-axis budget now drive an in-process multi-agent orchestrator (plan → parallel
+> **Status: Phase 3 — the eval gate.** The hand-written agent loop, permission-gated tool
+> registry, and 3-axis budget drive an in-process multi-agent orchestrator (plan → parallel
 > searchers → synthesize → reflect/replan) and a local contextual-RAG pipeline: `argus ingest`
 > builds a PostgreSQL + pgvector corpus, and a `rag_search` tool retrieves it alongside web
-> search. Still single-process; the Kubernetes + KEDA autoscaling and the CI eval gate land in
-> later phases (see the roadmap below). Built in the open, one atomic commit at a time.
+> search. `argus eval` runs a golden set through real retrieval + a judged answer and fails when
+> metrics drop below committed thresholds. Still single-process; Kubernetes + KEDA autoscaling
+> lands next (see the roadmap below). Built in the open, one atomic commit at a time.
 
 ## Why framework-free?
 
@@ -41,7 +42,7 @@ Argus implements each as a readable module; this table tracks where each one sta
 | 5 | State + memory (L1 in-loop / L2 Redis / L3 durable) | `state/` | Phase 2 |
 | 6 | HITL / permissions (deny / allow / ask, default-deny) | `tools/registry.py` (gate) | hook ✅, flow Phase 5 |
 | 7 | Observability (structlog + OTel, cost per span) | [`logging.py`](src/argus/logging.py) | logging ✅, OTel Phase 1 |
-| 8 | Eval gate (golden-set replay + κ-judge, CI-blocking) | `eval/` | Phase 3 |
+| 8 | Eval gate (golden set + κ-judge, threshold-blocking) | [`eval/`](src/argus/eval/) | metrics + gate ✅, CI job Phase 3 |
 
 ## Quickstart (Phase 0)
 
@@ -92,6 +93,30 @@ with an optional `bge-reranker-v2-m3` cross-encoder stage
 needs `uv sync --extra parse`. See [ADR 0001](docs/adr/0001-datastore-postgres-pgvector.md)
 for why pgvector is the single store.
 
+## Eval gate (Phase 3)
+
+Retrieval quality is a number, not a vibe. `argus eval` ingests the repo's own
+docs into a dedicated corpus, runs a committed golden set
+([`eval/golden.jsonl`](eval/golden.jsonl)) through real retrieval and a judged
+agent answer, and exits non-zero when the aggregate metrics fall below
+[`eval/thresholds.json`](eval/thresholds.json):
+
+```bash
+docker compose --profile data up -d   # needs the data stack + an LLM
+make eval                             # -> eval PASS/FAIL with hit@k, precision@k, mrr, judge_pass_rate
+```
+
+- **Retrieval metrics** — hit@k, precision@k, and mean reciprocal rank, scored
+  against each question's relevant sources. Implemented in-repo
+  ([`eval/metrics.py`](src/argus/eval/metrics.py)), not via RAGAS, to stay
+  dependency-light and offline-capable.
+- **LLM judge** — a second model rules each answer correct-and-grounded or not.
+  A judge is only trusted once **Cohen's κ** against human labels clears the
+  floor; the κ helper lives alongside the retrieval metrics.
+- **CI split** — the metric/runner/judge *logic* is unit-tested in hermetic CI
+  (no DB, no API key); the *live* gate runs from `make eval` against the stack,
+  and slots into CI as a stack-provisioned job in a later phase.
+
 ## Development
 
 ```bash
@@ -118,8 +143,10 @@ phase boundary, not only at the end.
   Anthropic-style contextual retrieval (nomic-embed + hybrid HNSW/FTS + RRF, optional bge
   cross-encoder rerank), exposed as a `rag_search` tool the agent uses alongside `web_search`.
   Embeddings + rerank run locally.
-- **Phase 3 — Eval as a CI gate**: golden set + RAGAS retrieval metrics + κ-calibrated LLM-judge +
-  a regression gate that blocks merges; self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
+- **Phase 3 — Eval gate** ✅ (live; CI job next): `argus eval` runs a golden set through real
+  retrieval + a judged answer, with in-repo retrieval metrics (hit@k / precision@k / MRR) and a
+  κ-calibratable LLM judge, failing below committed thresholds. Still to come — wiring it as a
+  stack-provisioned CI job and self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
 - **Phase 4 — Kubernetes + KEDA**: queue-depth scale-from-zero of lightweight searcher pods; the
   0→N→0 autoscale curve under a reproducible load test; chaos-kill proof of no dropped work.
 - **Phase 5 — Durable execution + sandbox + MCP**: checkpoint/resume across pod eviction;
