@@ -82,10 +82,13 @@ phase boundary, not only at the end.
 - **Phase 0 — Spine** (this): hand-written loop + tool registry + budget + one search tool, green CI.
 - **Phase 1 — Real agent loop**: web-fetch/extract, the 5-step retry/fallback ladder, prompt
   assembly with cache breakpoints, Redis state, OpenTelemetry traces you can see.
-- **Phase 2 — Multi-agent**: planner / searcher / synthesizer roles over a NATS work queue;
-  aggregator-as-judge synthesis.
-- **Phase 3 — Eval as a CI gate**: golden set + κ-calibrated LLM-judge + a regression gate that
-  blocks merges; self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
+- **Phase 2 — Multi-agent**: planner / searcher / synthesizer roles, then distributed over an
+  ARQ-on-Redis work queue; aggregator-as-judge synthesis.
+- **Phase 2b — Contextual RAG**: ingest documents into PostgreSQL + pgvector; local contextual
+  retrieval (nomic-embed + hybrid HNSW/FTS + RRF + a bge cross-encoder rerank) exposed as a
+  `rag_search` tool the agent uses alongside `web_search`. Embeddings + rerank run locally.
+- **Phase 3 — Eval as a CI gate**: golden set + RAGAS retrieval metrics + κ-calibrated LLM-judge +
+  a regression gate that blocks merges; self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
 - **Phase 4 — Kubernetes + KEDA**: queue-depth scale-from-zero of lightweight searcher pods; the
   0→N→0 autoscale curve under a reproducible load test; chaos-kill proof of no dropped work.
 - **Phase 5 — Durable execution + sandbox + MCP**: checkpoint/resume across pod eviction;
