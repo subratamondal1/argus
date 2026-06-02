@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import litellm
+from pydantic import BaseModel
 
 from argus.logging import get_logger
 
 log = get_logger(__name__)
+
+_Structured = TypeVar("_Structured", bound=BaseModel)
 
 
 @dataclass(frozen=True)
@@ -67,3 +70,15 @@ class LLMClient:
             completion_tokens=completion_tokens,
             cost_usd=cost_usd,
         )
+
+    async def complete_structured(
+        self, messages: list[dict[str, Any]], schema: type[_Structured]
+    ) -> _Structured:
+        response: Any = await litellm.acompletion(
+            model=self._model,
+            messages=messages,
+            response_format=schema,
+            timeout=self._timeout,
+        )
+        content: str = response.choices[0].message.content or "{}"
+        return schema.model_validate_json(content)
