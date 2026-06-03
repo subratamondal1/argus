@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import AsyncExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import orjson
@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from argus.agent.budget import Budget, BudgetState, BudgetStop
 from argus.agent.events import EventSink, emit
+from argus.agent.sources import Source, sources_from_result
 from argus.llm import LLMResponse, TokenSink
 from argus.logging import get_logger
 from argus.tools.registry import Approver, ToolCall, ToolRegistry, ToolResult
@@ -36,6 +37,7 @@ class AgentResult:
     tokens: int
     cost_usd: float
     transcript: list[dict[str, Any]]
+    sources: list[Source] = field(default_factory=list)
 
 
 def _result_to_text(result: ToolResult) -> str:
@@ -90,6 +92,7 @@ class AgentLoop:
         tools: list[dict[str, Any]] | None = self._registry.schema() or None
         answer: str = ""
         stop_reason: str = "completed"
+        collected: list[Source] = []
 
         token_sink: TokenSink | None = None
         if stream_tokens and on_event is not None:
@@ -154,6 +157,7 @@ class AgentLoop:
                         ToolCall(name=call.name, arguments=_parse_arguments(call.arguments)),
                         approver=self._approver,
                     )
+                    collected.extend(sources_from_result(result))
                     messages.append(
                         {
                             "role": "tool",
@@ -169,4 +173,5 @@ class AgentLoop:
             tokens=state.tokens,
             cost_usd=round(state.cost_usd, 6),
             transcript=messages,
+            sources=collected,
         )

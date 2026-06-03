@@ -21,6 +21,7 @@ from argus.agent.events import EventSink, emit
 from argus.agent.loop import AgentResult
 from argus.agent.orchestrator import ResearchReport
 from argus.agent.prompts import triage_messages
+from argus.agent.sources import dedupe, numbered_payload
 from argus.logging import get_logger
 
 log = get_logger(__name__)
@@ -110,6 +111,9 @@ class AdaptiveOrchestrator:
             return report
 
         result = await self.build_loop().run(question, on_event=on_event, stream_tokens=True)
+        sources = dedupe(result.sources)
+        if sources:
+            await emit(on_event, "sources", items=numbered_payload(sources))
         await emit(on_event, "answer", text=result.answer)
         return ResearchReport(question=question, answer=result.answer, findings=[], rounds=0)
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from argus.agent.sources import Source
+
 
 def research_system_prompt() -> str:
     today: str = datetime.now().strftime("%Y-%m-%d")
@@ -31,10 +33,14 @@ _PLANNER_SYSTEM: str = (
 )
 
 _SYNTHESIS_SYSTEM: str = (
-    "You are the synthesis step of a research system. You are given the original question "
-    "and findings from sub-researchers. Fuse them into one well-structured, cited answer. "
-    "Use only the findings; do not invent facts. Prefer the most recent and most "
-    "authoritative information, and cite the URLs the findings relied on."
+    "You are the synthesis step of a research system. You are given the original question, "
+    "findings from sub-researchers, and a numbered list of sources. Fuse the findings into "
+    "one well-structured answer in Markdown. Use only the findings and sources; do not invent "
+    "facts. Support each non-obvious claim with an inline citation in square brackets — like "
+    "[1] or [2][3] — where the number is the source's number in the SOURCES list; cite the "
+    "specific source the claim rests on. Do NOT add a 'Sources' or 'References' section at the "
+    "end: the interface renders the sources separately, so a trailing list would duplicate them. "
+    "Prefer the most recent and most authoritative information."
 )
 
 _REFLECTION_SYSTEM: str = (
@@ -56,13 +62,27 @@ def planner_messages(question: str, max_sub_questions: int) -> list[dict[str, st
     ]
 
 
-def synthesis_messages(question: str, findings: list[tuple[str, str]]) -> list[dict[str, str]]:
-    body: str = "\n\n".join(
+def synthesis_messages(
+    question: str, findings: list[tuple[str, str]], sources: list[Source]
+) -> list[dict[str, str]]:
+    findings_body: str = "\n\n".join(
         f"Sub-question: {sub_question}\nFinding: {answer}" for sub_question, answer in findings
+    )
+    sources_body: str = (
+        "\n".join(
+            f"[{index + 1}] {source.title} ({source.url})\n    {source.snippet}"
+            for index, source in enumerate(sources)
+        )
+        or "(no sources captured — answer from the findings without citations)"
     )
     return [
         {"role": "system", "content": _SYNTHESIS_SYSTEM},
-        {"role": "user", "content": f"Question: {question}\n\nFindings:\n{body}"},
+        {
+            "role": "user",
+            "content": (
+                f"Question: {question}\n\nSOURCES:\n{sources_body}\n\nFindings:\n{findings_body}"
+            ),
+        },
     ]
 
 

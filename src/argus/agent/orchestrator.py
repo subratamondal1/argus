@@ -26,6 +26,7 @@ from argus.agent.prompts import (
     research_system_prompt,
     synthesis_messages,
 )
+from argus.agent.sources import Source, dedupe, numbered_payload
 from argus.llm import LLMResponse, TokenSink
 from argus.logging import get_logger
 from argus.tools.registry import ToolRegistry
@@ -57,6 +58,7 @@ class Reflection(BaseModel):
 class Finding(BaseModel):
     sub_question: str
     answer: str
+    sources: list[Source] = Field(default_factory=list)
 
 
 class ResearchReport(BaseModel):
@@ -100,6 +102,7 @@ class Orchestrator:
         pending: list[str] = sub_questions[: self.max_sub_questions]
         await emit(on_event, "plan", sub_questions=pending)
         findings: list[Finding] = []
+        collected: list[Source] = []
         draft: str = ""
         rounds: int = 0
 
@@ -110,8 +113,12 @@ class Orchestrator:
                 *(self._search(sub_question, on_event) for sub_question in pending)
             )
             findings.extend(round_findings)
+            for finding in round_findings:
+                collected.extend(finding.sources)
+            sources: list[Source] = dedupe(collected)
+            await emit(on_event, "sources", items=numbered_payload(sources))
             await emit(on_event, "synthesize", findings=len(findings))
-            draft = await self._synthesize(question, findings, on_event)
+            draft = await self._synthesize(question, findings, sources, on_event)
             reflection: Reflection = await self.llm.complete_structured(
                 reflection_messages(question, draft), Reflection
             )
@@ -123,8 +130,10 @@ class Orchestrator:
             pending = reflection.missing[: self.max_sub_questions]
 
         if not draft:
+            sources = dedupe(collected)
+            await emit(on_event, "sources", items=numbered_payload(sources))
             await emit(on_event, "synthesize", findings=len(findings))
-            draft = await self._synthesize(question, findings, on_event)
+            draft = await self._synthesize(question, findings, sources, on_event)
         log.info("research_done", rounds=rounds, findings=len(findings))
         await emit(on_event, "answer", text=draft)
         return ResearchReport(question=question, answer=draft, findings=findings, rounds=rounds)
@@ -139,10 +148,14 @@ class Orchestrator:
         )
         result = await loop.run(sub_question, on_event=_tagged(on_event, sub_question))
         await emit(on_event, "search_done", sub_question=sub_question)
-        return Finding(sub_question=sub_question, answer=result.answer)
+        return Finding(sub_question=sub_question, answer=result.answer, sources=result.sources)
 
     async def _synthesize(
-        self, question: str, findings: list[Finding], on_event: EventSink | None = None
+        self,
+        question: str,
+        findings: list[Finding],
+        sources: list[Source],
+        on_event: EventSink | None = None,
     ) -> str:
         token_sink: TokenSink | None = None
         if on_event is not None:
@@ -151,7 +164,7 @@ class Orchestrator:
                 await emit(on_event, "token", text=delta)
 
         response: LLMResponse = await self.llm.complete(
-            synthesis_messages(question, [(f.sub_question, f.answer) for f in findings]),
+            synthesis_messages(question, [(f.sub_question, f.answer) for f in findings], sources),
             on_token=token_sink,
         )
         return response.content or ""

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from argus.agent.budget import Budget
+from argus.agent.events import AgentEvent
 from argus.agent.orchestrator import Orchestrator, Reflection, ResearchPlan
 from argus.llm import LLMResponse
 from argus.tools.registry import ToolRegistry
@@ -66,3 +67,21 @@ async def test_orchestrator_replans_when_incomplete() -> None:
 
     assert report.rounds == 2
     assert len(report.findings) == 2
+
+
+async def test_orchestrator_emits_a_sources_event_before_synthesis() -> None:
+    events: list[AgentEvent] = []
+
+    async def sink(event: AgentEvent) -> None:
+        events.append(event)
+
+    orchestrator = Orchestrator(
+        llm=FakeResearchLLM(), registry=ToolRegistry(), searcher_budget=_budget()
+    )
+    await orchestrator.run("What is the latest model?", on_event=sink)
+
+    kinds = [event.kind for event in events]
+    assert "sources" in kinds
+    assert kinds.index("sources") < kinds.index("synthesize")
+    sources_event = next(event for event in events if event.kind == "sources")
+    assert isinstance(sources_event.data["items"], list)
