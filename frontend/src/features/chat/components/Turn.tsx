@@ -1,4 +1,7 @@
+import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+
+import { editorialEase } from "@/shared/lib/motion";
 
 import type { Turn as TurnModel } from "../store";
 import { Answer } from "./Answer";
@@ -16,10 +19,15 @@ export function Turn({
 }) {
   const streaming = turn.status === "streaming";
   return (
-    <article className="border-b border-zinc-200/50 py-7 first:pt-2 last:border-0 dark:border-zinc-800/40">
-      <h2 className="mb-5 text-[22px] font-semibold leading-snug tracking-tight">
+    <article className="border-b border-foreground/10 py-8 first:pt-2 last:border-0">
+      <motion.h2
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: editorialEase }}
+        className="mb-5 font-sans text-[22px] font-semibold leading-snug tracking-tight"
+      >
         {turn.question}
-      </h2>
+      </motion.h2>
       <Steps events={turn.events} streaming={streaming} />
       {!streaming && <Sources text={turn.answer} />}
       {turn.artifact ? (
@@ -27,13 +35,13 @@ export function Turn({
       ) : (
         <Answer text={turn.answer} streaming={streaming} />
       )}
-      {streaming && turn.answer.length === 0 && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
+      {streaming && turn.events.length === 0 && turn.answer.length === 0 && (
+        <div className="flex items-center gap-2 text-sm text-foreground/45">
           <Loader2 className="h-4 w-4 animate-spin" /> thinking…
         </div>
       )}
       {turn.error !== null && (
-        <p className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-500">
           {turn.error}
         </p>
       )}

@@ -1,18 +1,11 @@
 "use client";
 
-import {
-  Brain,
-  Check,
-  ChevronDown,
-  Layers,
-  Loader2,
-  RefreshCw,
-  Search,
-  Wrench,
-} from "lucide-react";
-import { type ComponentType, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Brain, Check, ChevronDown, Layers, Loader2, RefreshCw, Search, Wrench } from "lucide-react";
+import { useState } from "react";
 
 import { cn } from "@/shared/lib/cn";
+import { editorialEase } from "@/shared/lib/motion";
 
 import type { AgentEvent } from "../types";
 
@@ -22,14 +15,12 @@ interface AgentCard {
   done: boolean;
 }
 
-interface LinearStep {
-  icon: ComponentType<{ className?: string }>;
-  text: string;
-}
-
 interface Grouped {
+  strategy: string | null;
+  reasoning: string | null;
   planned: number | null;
   agents: AgentCard[];
+  tools: string[];
   synthFindings: number | null;
   reflection: string | null;
 }
@@ -37,158 +28,170 @@ interface Grouped {
 function group(events: AgentEvent[]): Grouped {
   const order: string[] = [];
   const map = new Map<string, AgentCard>();
-  let planned: number | null = null;
-  let synthFindings: number | null = null;
-  let reflection: string | null = null;
+  const tools: string[] = [];
+  const grouped: Grouped = {
+    strategy: null,
+    reasoning: null,
+    planned: null,
+    agents: [],
+    tools,
+    synthFindings: null,
+    reflection: null,
+  };
 
   for (const event of events) {
-    if (event.type === "plan") {
-      planned = (event.sub_questions ?? []).length;
-      continue;
-    }
-    if (event.type === "synthesize") {
-      synthFindings = event.findings ?? 0;
-      continue;
-    }
-    if (event.type === "reflect") {
-      reflection = event.complete
+    if (event.type === "triage") {
+      grouped.strategy = event.strategy ?? null;
+      grouped.reasoning = event.reasoning ?? null;
+    } else if (event.type === "plan") {
+      grouped.planned = (event.sub_questions ?? []).length;
+    } else if (event.type === "synthesize") {
+      grouped.synthFindings = event.findings ?? 0;
+    } else if (event.type === "reflect") {
+      grouped.reflection = event.complete
         ? "complete"
         : `following up on ${(event.missing ?? []).length}`;
-      continue;
-    }
-    const question = event.sub_question;
-    if (question === undefined) continue;
-    if (!map.has(question)) {
-      map.set(question, { subQuestion: question, tool: null, done: false });
-      order.push(question);
-    }
-    const card = map.get(question);
-    if (card === undefined) continue;
-    if (event.type === "tool") {
-      card.tool = `${event.name ?? "tool"}${event.query ? ` · ${event.query}` : ""}`;
-    }
-    if (event.type === "search_done") card.done = true;
-  }
-
-  return { planned, agents: order.map((question) => map.get(question)!), synthFindings, reflection };
-}
-
-function linearSteps(events: AgentEvent[]): LinearStep[] {
-  const steps: LinearStep[] = [];
-  for (const event of events) {
-    if (event.type === "tool") {
-      steps.push({
-        icon: Wrench,
-        text: `${event.name ?? "tool"}${event.query ? ` — ${event.query}` : ""}`,
-      });
+    } else if (event.sub_question !== undefined) {
+      const question = event.sub_question;
+      if (!map.has(question)) {
+        map.set(question, { subQuestion: question, tool: null, done: false });
+        order.push(question);
+      }
+      const card = map.get(question);
+      if (card !== undefined) {
+        if (event.type === "tool") {
+          card.tool = `${event.name ?? "tool"}${event.query ? ` · ${event.query}` : ""}`;
+        }
+        if (event.type === "search_done") card.done = true;
+      }
+    } else if (event.type === "tool") {
+      tools.push(`${event.name ?? "tool"}${event.query ? ` — ${event.query}` : ""}`);
     }
   }
-  return steps;
+
+  grouped.agents = order.map((question) => map.get(question)!);
+  return grouped;
 }
 
 export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: boolean }) {
   const [open, setOpen] = useState(false);
-  if (events.length === 0) return null;
-  const grouped = group(events);
-  const isDeep = grouped.agents.length > 0 || grouped.planned !== null;
-  const expanded = streaming || open;
+  const g = group(events);
+  const isResearch = g.agents.length > 0 || g.planned !== null || g.strategy === "research";
+  const hasBody = g.reasoning !== null || g.agents.length > 0 || g.tools.length > 0;
+  if (g.strategy === null && !hasBody) return null;
+
+  const summary = streaming
+    ? "Working…"
+    : isResearch
+      ? `Deep research · ${g.agents.length} agents`
+      : "Answered directly";
+  const expanded = (streaming || open) && hasBody;
 
   return (
-    <div className="mb-5 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <div className="mb-5 overflow-hidden rounded-md border border-foreground/15 bg-foreground/[0.02]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="flex items-center gap-2 text-[12px] font-medium text-zinc-500 dark:text-zinc-400">
+        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-foreground/55">
           {streaming ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
           ) : (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
+            <Check className="h-3.5 w-3.5 text-accent" />
           )}
-          {streaming
-            ? "Working…"
-            : isDeep
-              ? `${grouped.agents.length} agents · researched`
-              : "Steps"}
+          {summary}
         </span>
-        <ChevronDown className={cn("h-4 w-4 text-zinc-400 transition", expanded && "rotate-180")} />
+        {hasBody && (
+          <ChevronDown
+            className={cn("h-4 w-4 text-foreground/40 transition", expanded && "rotate-180")}
+          />
+        )}
       </button>
 
-      {expanded &&
-        (isDeep ? (
-          <div className="space-y-3 px-4 pb-4">
-            {grouped.planned !== null && (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <Brain className="h-4 w-4 text-zinc-400" /> Planned {grouped.planned} sub-questions,
-                fanned out to parallel agents
+      {expanded && (
+        <div className="space-y-3 px-4 pb-4">
+          {g.reasoning !== null && (
+            <p className="font-serif text-[13px] italic leading-snug text-foreground/60">
+              {g.reasoning}
+            </p>
+          )}
+
+          {isResearch ? (
+            <>
+              {g.planned !== null && (
+                <div className="flex items-center gap-2 text-sm text-foreground/55">
+                  <Brain className="h-4 w-4 text-foreground/40" /> Planned {g.planned} sub-questions,
+                  fanned out to parallel agents
+                </div>
+              )}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <AnimatePresence initial={false}>
+                  {g.agents.map((agent, index) => {
+                    const active = streaming && !agent.done;
+                    return (
+                      <motion.div
+                        key={agent.subQuestion}
+                        layout
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.35, ease: editorialEase }}
+                        className="rounded-md border border-foreground/15 bg-surface p-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          {agent.done ? (
+                            <Check className="h-3.5 w-3.5 text-accent" />
+                          ) : active ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                          ) : (
+                            <Search className="h-3.5 w-3.5 text-foreground/40" />
+                          )}
+                          <span className="font-mono text-[10px] uppercase tracking-widest text-foreground/45">
+                            Agent {index + 1}
+                          </span>
+                        </div>
+                        <p
+                          className="mt-1.5 line-clamp-2 font-serif text-[13px] leading-snug text-foreground/85"
+                          title={agent.subQuestion}
+                        >
+                          {agent.subQuestion}
+                        </p>
+                        {agent.tool !== null && (
+                          <p className="mt-1 truncate font-mono text-[11px] text-foreground/40">
+                            {agent.tool}
+                          </p>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
-            )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {grouped.agents.map((agent, index) => {
-                const active = streaming && !agent.done;
-                return (
-                  <div
-                    key={index}
-                    className="rounded-xl border border-zinc-200 bg-white/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/50"
-                  >
-                    <div className="flex items-center gap-2">
-                      {agent.done ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : active ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
-                      ) : (
-                        <Search className="h-3.5 w-3.5 text-zinc-400" />
-                      )}
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-                        Agent {index + 1}
-                      </span>
-                    </div>
-                    <p
-                      className="mt-1.5 line-clamp-2 text-sm text-zinc-700 dark:text-zinc-200"
-                      title={agent.subQuestion}
-                    >
-                      {agent.subQuestion}
-                    </p>
-                    {agent.tool !== null && (
-                      <p className="mt-1 truncate text-xs text-zinc-400" title={agent.tool}>
-                        {agent.tool}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {grouped.synthFindings !== null && (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <Layers className="h-4 w-4 text-zinc-400" /> Synthesizing {grouped.synthFindings}{" "}
-                findings
-              </div>
-            )}
-            {grouped.reflection !== null && (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <RefreshCw className="h-4 w-4 text-zinc-400" /> Reflection — {grouped.reflection}
-              </div>
-            )}
-          </div>
-        ) : (
-          <ol className="space-y-2.5 px-4 pb-4">
-            {linearSteps(events).map((step, index) => {
-              const active = streaming && index === linearSteps(events).length - 1;
-              const Icon = step.icon;
-              return (
-                <li key={index} className="flex items-center gap-2.5 text-sm">
-                  {active ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-500" />
-                  ) : (
-                    <Icon className="h-4 w-4 shrink-0 text-zinc-400" />
-                  )}
-                  <span className="truncate text-zinc-500 dark:text-zinc-400">{step.text}</span>
-                </li>
-              );
-            })}
-          </ol>
-        ))}
+              {g.synthFindings !== null && (
+                <div className="flex items-center gap-2 text-sm text-foreground/55">
+                  <Layers className="h-4 w-4 text-foreground/40" /> Synthesizing {g.synthFindings}{" "}
+                  findings
+                </div>
+              )}
+              {g.reflection !== null && (
+                <div className="flex items-center gap-2 text-sm text-foreground/55">
+                  <RefreshCw className="h-4 w-4 text-foreground/40" /> Reflection — {g.reflection}
+                </div>
+              )}
+            </>
+          ) : (
+            g.tools.length > 0 && (
+              <ol className="space-y-2">
+                {g.tools.map((tool, index) => (
+                  <li key={index} className="flex items-center gap-2.5 text-sm text-foreground/55">
+                    <Wrench className="h-4 w-4 shrink-0 text-foreground/40" />
+                    <span className="truncate">{tool}</span>
+                  </li>
+                ))}
+              </ol>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }

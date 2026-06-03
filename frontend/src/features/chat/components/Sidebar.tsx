@@ -15,15 +15,18 @@ export function Sidebar() {
   const deleteConversation = useChatStore((state) => state.deleteConversation);
 
   return (
-    <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-zinc-200/60 bg-zinc-50/60 dark:border-zinc-800/60 dark:bg-zinc-900/30 md:flex">
+    <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-foreground/10 bg-foreground/[0.02] md:flex">
       <div className="flex items-center gap-2 px-4 py-3.5">
         <span className="text-sm font-semibold tracking-tight">Argus</span>
+        <span className="font-mono text-[9px] uppercase tracking-widest text-foreground/35">
+          deep research
+        </span>
       </div>
       <div className="px-3 pb-2">
         <button
           type="button"
           onClick={() => newConversation()}
-          className="flex w-full items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          className="flex w-full items-center gap-2 rounded-md border border-foreground/15 bg-surface px-3 py-2 text-sm font-medium transition hover:border-accent/45"
         >
           <PenSquare className="h-4 w-4" /> New chat
         </button>
@@ -34,16 +37,16 @@ export function Sidebar() {
             <div
               key={conversation.id}
               className={cn(
-                "group flex items-center gap-1 rounded-lg px-2 transition",
+                "group flex items-center gap-1 rounded-md px-2 transition",
                 conversation.id === activeId
-                  ? "bg-zinc-200/70 dark:bg-zinc-800"
-                  : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+                  ? "bg-foreground/[0.06]"
+                  : "hover:bg-foreground/[0.03]",
               )}
             >
               <button
                 type="button"
                 onClick={() => setActive(conversation.id)}
-                className="flex-1 truncate py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
+                className="flex-1 truncate py-2 text-left text-sm text-foreground/75"
                 title={conversation.title}
               >
                 {conversation.title || "New chat"}
@@ -54,7 +57,7 @@ export function Sidebar() {
                 className="rounded p-1 opacity-0 transition group-hover:opacity-100"
                 aria-label="Delete chat"
               >
-                <Trash2 className="h-3.5 w-3.5 text-zinc-400 hover:text-red-500" />
+                <Trash2 className="h-3.5 w-3.5 text-foreground/40 hover:text-red-500" />
               </button>
             </div>
           ))}
