@@ -10,7 +10,7 @@ from argus.agent.adaptive import AdaptiveOrchestrator
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop
 from argus.agent.orchestrator import Orchestrator
-from argus.agent.prompts import research_system_prompt
+from argus.agent.prompts import direct_system_prompt
 from argus.config import Settings, get_settings
 from argus.llm import LLMClient
 from argus.tools.rag_search import register_rag_search
@@ -37,29 +37,32 @@ def build_budget(settings: Settings) -> Budget:
     )
 
 
-def build_loop() -> AgentLoop:
+def build_loop(ingested_sources: list[str] | None = None) -> AgentLoop:
     settings = get_settings()
     return AgentLoop(
         registry=build_registry(),
         llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
         budget=build_budget(settings),
-        system_prompt=research_system_prompt(),
+        system_prompt=direct_system_prompt(ingested_sources),
     )
 
 
-def build_orchestrator() -> Orchestrator:
+def build_orchestrator(ingested_sources: list[str] | None = None) -> Orchestrator:
     settings = get_settings()
     return Orchestrator(
         llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
         registry=build_registry(),
         searcher_budget=build_budget(settings),
+        ingested_sources=list(ingested_sources or []),
     )
 
 
-def build_adaptive() -> AdaptiveOrchestrator:
+def build_adaptive(ingested_sources: list[str] | None = None) -> AdaptiveOrchestrator:
     settings = get_settings()
+    sources: list[str] = list(ingested_sources or [])
     return AdaptiveOrchestrator(
         llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
-        build_loop=build_loop,
-        orchestrator=build_orchestrator(),
+        build_loop=lambda: build_loop(sources),
+        orchestrator=build_orchestrator(sources),
+        ingested_sources=sources,
     )

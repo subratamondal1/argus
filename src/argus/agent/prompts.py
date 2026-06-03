@@ -7,7 +7,19 @@ from datetime import datetime
 from argus.agent.sources import Source
 
 
-def research_system_prompt() -> str:
+def _ingested_note(ingested_sources: list[str] | None) -> str:
+    if not ingested_sources:
+        return ""
+    listed: str = "; ".join(ingested_sources)
+    return (
+        f" The user has just added the following source(s) to Argus in this session: {listed}. "
+        "If the request is ambiguous or uses a pronoun like 'it', 'this', or 'that' without a "
+        "clear referent, it most likely refers to this added material — call rag_search to read "
+        "it and answer from it."
+    )
+
+
+def research_system_prompt(ingested_sources: list[str] | None = None) -> str:
     today: str = datetime.now().strftime("%Y-%m-%d")
     return (
         f"You are Argus, a careful research assistant. Today's date is {today}. "
@@ -23,7 +35,19 @@ def research_system_prompt() -> str:
         "already have — including any retrieved context — rather than refusing; only say "
         "you cannot answer when you genuinely have no relevant information. Cite the "
         "sources (URLs or document names) you relied on."
-    )
+    ) + _ingested_note(ingested_sources)
+
+
+_DIRECT_CLARIFY: str = (
+    " If the request is too vague or ambiguous to answer confidently — an unclear pronoun, a "
+    "missing subject, or several plausible meanings — and nothing available to you (including any "
+    "added sources) resolves it, ask one short clarifying question instead of guessing or quietly "
+    "answering a different interpretation."
+)
+
+
+def direct_system_prompt(ingested_sources: list[str] | None = None) -> str:
+    return research_system_prompt(ingested_sources) + _DIRECT_CLARIFY
 
 
 _PLANNER_SYSTEM: str = (
@@ -120,11 +144,22 @@ _TRIAGE_SYSTEM: str = (
 )
 
 
-def triage_messages(question: str, max_sub_questions: int) -> list[dict[str, str]]:
+def triage_messages(
+    question: str, max_sub_questions: int, ingested_sources: list[str] | None = None
+) -> list[dict[str, str]]:
+    context: str = ""
+    if ingested_sources:
+        context = (
+            f"\n\n(The user has just added: {'; '.join(ingested_sources)}. "
+            "An ambiguous request likely refers to it — usually answerable directly.)"
+        )
     return [
         {"role": "system", "content": _TRIAGE_SYSTEM},
         {
             "role": "user",
-            "content": f"Request: {question}\n\nFor research, give at most {max_sub_questions} sub-questions.",
+            "content": (
+                f"Request: {question}{context}\n\n"
+                f"For research, give at most {max_sub_questions} sub-questions."
+            ),
         },
     ]

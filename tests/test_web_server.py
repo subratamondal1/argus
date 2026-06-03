@@ -42,7 +42,7 @@ class _FakeAdaptive:
 async def test_ask_streams_progress_then_answer_then_done(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(web, "build_adaptive", lambda: _FakeAdaptive())
+    monkeypatch.setattr(web, "build_adaptive", lambda *_args, **_kwargs: _FakeAdaptive())
 
     async def fake_related(question: str, answer: str) -> list[str]:
         return ["a follow-up question?"]

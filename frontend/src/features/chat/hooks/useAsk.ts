@@ -11,7 +11,7 @@ import type { AgentEvent } from "../types";
 const RESETS_ANSWER = new Set(["plan", "tool", "synthesize"]);
 
 interface Ask {
-  ask: (question: string, deep: boolean) => Promise<void>;
+  ask: (question: string, deep: boolean, ingested?: string[]) => Promise<void>;
   cancel: () => void;
 }
 
@@ -22,7 +22,7 @@ interface Ask {
 export function useAsk(): Ask {
   const controllerRef = useRef<AbortController | null>(null);
 
-  const ask = useCallback(async (question: string, deep: boolean) => {
+  const ask = useCallback(async (question: string, deep: boolean, ingested: string[] = []) => {
     const store = useChatStore.getState();
     const conversationId = store.activeId ?? store.newConversation();
     const turnId = crypto.randomUUID();
@@ -90,7 +90,7 @@ export function useAsk(): Ask {
       const response = await fetch(`${API_BASE}/api/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, deep }),
+        body: JSON.stringify({ question, deep, ingested }),
         signal: controller.signal,
       });
       if (!response.ok || response.body === null) {

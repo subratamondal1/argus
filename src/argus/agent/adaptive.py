@@ -11,7 +11,7 @@ the sub-questions, so no separate planning round is needed.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -72,6 +72,7 @@ class AdaptiveOrchestrator:
     build_loop: Callable[[], LoopRunner]
     orchestrator: ResearchRunner
     max_sub_questions: int = 5
+    ingested_sources: list[str] = field(default_factory=list)
 
     async def run(
         self, question: str, *, on_event: EventSink | None = None, force_research: bool = False
@@ -89,7 +90,7 @@ class AdaptiveOrchestrator:
             return report
 
         triage: Triage = await self.llm.complete_structured(
-            triage_messages(question, self.max_sub_questions), Triage
+            triage_messages(question, self.max_sub_questions, self.ingested_sources), Triage
         )
         log.info("triage", strategy=triage.strategy.value, n=len(triage.sub_questions))
         await emit(

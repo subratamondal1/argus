@@ -12,7 +12,7 @@ unchanged by that move.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
@@ -89,6 +89,7 @@ class Orchestrator:
     searcher_budget: Budget
     max_rounds: int = 2
     max_sub_questions: int = 4
+    ingested_sources: list[str] = field(default_factory=list)
 
     async def run(self, question: str, *, on_event: EventSink | None = None) -> ResearchReport:
         plan: ResearchPlan = await self.llm.complete_structured(
@@ -144,7 +145,7 @@ class Orchestrator:
             registry=self.registry,
             llm=self.llm,
             budget=self.searcher_budget,
-            system_prompt=research_system_prompt(),
+            system_prompt=research_system_prompt(self.ingested_sources),
         )
         result = await loop.run(sub_question, on_event=_tagged(on_event, sub_question))
         await emit(on_event, "search_done", sub_question=sub_question)

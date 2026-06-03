@@ -82,6 +82,10 @@ app.add_middleware(
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
     deep: bool = False
+    ingested: list[str] = Field(
+        default_factory=list,
+        description="Sources the user added in this chat, so the agent can resolve 'it'/'this'.",
+    )
 
 
 class IngestRequest(BaseModel):
@@ -116,7 +120,7 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
 
     async def run() -> None:
         try:
-            report = await build_adaptive().run(
+            report = await build_adaptive(request.ingested).run(
                 request.question, on_event=sink, force_research=request.deep
             )
             related = await _related_questions(request.question, report.answer)
