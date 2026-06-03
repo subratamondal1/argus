@@ -1,5 +1,8 @@
 "use client";
 
+import { Menu, PenSquare } from "lucide-react";
+import { useState } from "react";
+
 import { Composer } from "./components/Composer";
 import { Sidebar } from "./components/Sidebar";
 import { Turn } from "./components/Turn";
@@ -15,19 +18,37 @@ const EXAMPLES = [
 
 export function ChatPage() {
   const { ask, cancel } = useAsk();
+  const [navOpen, setNavOpen] = useState(false);
   const conversation = useChatStore(
     (state) => state.conversations.find((item) => item.id === state.activeId) ?? null,
   );
+  const newConversation = useChatStore((state) => state.newConversation);
   const turns = conversation?.turns ?? [];
   const streaming = turns.some((turn) => turn.status === "streaming");
   const scrollRef = useStickToBottom();
 
   return (
     <div className="flex h-dvh bg-background text-foreground">
-      <Sidebar />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center border-b border-foreground/10 px-5 py-3 md:hidden">
+        <header className="flex items-center justify-between gap-2 border-b border-foreground/10 px-2 py-2 md:hidden">
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            className="rounded-md p-2 text-foreground/70 transition hover:bg-foreground/10"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <span className="text-sm font-semibold tracking-tight">Argus</span>
+          <button
+            type="button"
+            onClick={() => newConversation()}
+            aria-label="New chat"
+            className="rounded-md p-2 text-foreground/70 transition hover:bg-foreground/10"
+          >
+            <PenSquare className="h-5 w-5" />
+          </button>
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">

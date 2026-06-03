@@ -12,7 +12,6 @@ import { Answer } from "./Answer";
 import { Related } from "./Related";
 import { SourcesStrip } from "./SourcesStrip";
 import { Steps } from "./Steps";
-import { TextShimmer } from "./TextShimmer";
 
 export function Turn({
   turn,
@@ -36,9 +35,6 @@ export function Turn({
   const known = turn.deep || triageStrategy !== undefined || planned || !streaming;
   const eyebrow = isResearch ? "Deep research" : known ? "Direct answer" : "Working";
 
-  // Sweep the question while the agents work; stop the moment the answer starts.
-  const thinking = streaming && turn.answer.length === 0;
-
   return (
     <article className="border-b border-foreground/10 py-8 first:pt-2 last:border-0">
       <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
@@ -50,7 +46,7 @@ export function Turn({
         transition={{ duration: 0.4, ease: editorialEase }}
         className="mb-5 font-sans text-[22px] font-semibold leading-snug tracking-tight"
       >
-        {thinking ? <TextShimmer duration={1.6}>{turn.question}</TextShimmer> : turn.question}
+        {turn.question}
       </motion.h2>
 
       <Steps events={turn.events} streaming={streaming} />
