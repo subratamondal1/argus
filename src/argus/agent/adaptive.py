@@ -77,7 +77,11 @@ class AdaptiveOrchestrator:
     ) -> ResearchReport:
         if force_research:
             await emit(
-                on_event, "triage", strategy="research", reasoning="forced", sub_questions=[]
+                on_event,
+                "triage",
+                strategy="research",
+                reasoning="Deep research requested.",
+                sub_questions=[],
             )
             report = await self.orchestrator.run(question, on_event=on_event)
             await _emit_report_artifact(on_event, report)

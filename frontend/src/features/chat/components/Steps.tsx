@@ -88,15 +88,15 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
   const expanded = (streaming || open) && hasBody;
 
   return (
-    <div className="mb-5 overflow-hidden rounded-md border border-foreground/15 bg-foreground/[0.02]">
+    <div className="mb-5 overflow-hidden rounded-md border border-foreground/20 bg-foreground/[0.035]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-foreground/55">
+        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-foreground/70">
           {streaming ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent drop-shadow-[0_0_6px_var(--accent)]" />
           ) : (
             <Check className="h-3.5 w-3.5 text-accent" />
           )}
@@ -112,7 +112,7 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
       {expanded && (
         <div className="space-y-3 px-4 pb-4">
           {g.reasoning !== null && (
-            <p className="font-serif text-[13px] italic leading-snug text-foreground/60">
+            <p className="font-serif text-[13px] italic leading-snug text-foreground/70">
               {g.reasoning}
             </p>
           )}
@@ -120,8 +120,8 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
           {isResearch ? (
             <>
               {g.planned !== null && (
-                <div className="flex items-center gap-2 text-sm text-foreground/55">
-                  <Brain className="h-4 w-4 text-foreground/40" /> Planned {g.planned} sub-questions,
+                <div className="flex items-center gap-2 text-sm text-foreground/70">
+                  <Brain className="h-4 w-4 text-accent/70" /> Planned {g.planned} sub-questions,
                   fanned out to parallel agents
                 </div>
               )}
@@ -136,28 +136,53 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
                         initial={{ opacity: 0, y: 8, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 0.35, ease: editorialEase }}
-                        className="rounded-md border border-foreground/15 bg-surface p-3"
+                        className={cn(
+                          "rounded-md border p-3 transition-shadow",
+                          active
+                            ? "border-accent/70 bg-accent/[0.06] shadow-[0_0_22px_-6px_rgba(37,99,235,0.55)] dark:shadow-[0_0_26px_-4px_rgba(106,166,255,0.7)]"
+                            : "border-foreground/20 bg-surface",
+                        )}
                       >
                         <div className="flex items-center gap-2">
                           {agent.done ? (
-                            <Check className="h-3.5 w-3.5 text-accent" />
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent">
+                              <Check className="h-2.5 w-2.5 text-white" />
+                            </span>
                           ) : active ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                            <motion.span
+                              animate={{ scale: [1, 1.25, 1], opacity: [0.7, 1, 0.7] }}
+                              transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                              className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_rgba(37,99,235,0.9)] dark:shadow-[0_0_10px_rgba(106,166,255,1)]"
+                            />
                           ) : (
-                            <Search className="h-3.5 w-3.5 text-foreground/40" />
+                            <Search className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
                           )}
-                          <span className="font-mono text-[10px] uppercase tracking-widest text-foreground/45">
+                          <span
+                            className={cn(
+                              "font-mono text-[10px] uppercase tracking-widest",
+                              active ? "text-accent" : "text-foreground/55",
+                            )}
+                          >
                             Agent {index + 1}
+                          </span>
+                          <span className="ml-auto font-mono text-[9px] uppercase tracking-widest">
+                            {active ? (
+                              <span className="text-accent">running</span>
+                            ) : agent.done ? (
+                              <span className="text-accent/55">done</span>
+                            ) : (
+                              <span className="text-foreground/30">queued</span>
+                            )}
                           </span>
                         </div>
                         <p
-                          className="mt-1.5 line-clamp-2 font-serif text-[13px] leading-snug text-foreground/85"
+                          className="mt-2 line-clamp-2 font-serif text-[13px] leading-snug text-foreground/90"
                           title={agent.subQuestion}
                         >
                           {agent.subQuestion}
                         </p>
                         {agent.tool !== null && (
-                          <p className="mt-1 truncate font-mono text-[11px] text-foreground/40">
+                          <p className="mt-1.5 truncate font-mono text-[11px] text-foreground/45">
                             {agent.tool}
                           </p>
                         )}
