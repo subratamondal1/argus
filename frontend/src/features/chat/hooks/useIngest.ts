@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { API_BASE, friendlyError } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
+
+import { useChatStore } from "../store";
 
 type IngestStatus = "idle" | "loading" | "done" | "error";
 
@@ -29,9 +31,19 @@ interface IngestResponse {
 // Ingest by URL/path (JSON) or by uploading a file (multipart). Successful
 // ingests accumulate as chips the UI can show.
 export function useIngest(): Ingest {
+  const activeId = useChatStore((state) => state.activeId);
   const [status, setStatus] = useState<IngestStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [sources, setSources] = useState<IngestedSource[]>([]);
+
+  // Ingest chips are scoped to the active conversation — starting or switching
+  // chats clears them so a doc added in one chat never lingers in another.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeId is the reset trigger, not a value read inside the effect.
+  useEffect(() => {
+    setSources([]);
+    setStatus("idle");
+    setError(null);
+  }, [activeId]);
 
   async function record(response: Response): Promise<void> {
     if (!response.ok) throw new Error(`ingest failed: HTTP ${response.status}`);

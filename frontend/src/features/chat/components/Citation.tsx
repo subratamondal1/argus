@@ -36,10 +36,10 @@ export function Citation({
     >
       <sup
         className={cn(
-          "mx-px cursor-pointer select-none rounded-sm px-1 py-0.5 font-mono text-[10px] transition-all",
+          "mx-0.5 cursor-pointer select-none font-mono text-[10px] no-underline transition-all duration-150",
           highlighted
-            ? "bg-accent/20 text-accent [text-shadow:0_0_8px_var(--accent)]"
-            : "text-accent/80 hover:text-accent hover:[text-shadow:0_0_6px_var(--accent)]",
+            ? "text-accent [text-shadow:0_0_10px_var(--accent),0_0_4px_var(--accent)]"
+            : "text-accent/85 hover:text-accent hover:[text-shadow:0_0_10px_var(--accent),0_0_4px_var(--accent)]",
         )}
       >
         [{source.id}]

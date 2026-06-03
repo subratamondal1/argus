@@ -168,16 +168,22 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
       >
         {g.agents.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
-            <AnimatePresence initial={false}>
+            <AnimatePresence>
               {g.agents.map((agent, index) => {
                 const active = streaming && !agent.done;
                 return (
                   <motion.div
                     key={agent.subQuestion}
                     layout
-                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                    initial={{ opacity: 0, y: 16, scale: 0.9 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.35, ease: editorialEase }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 320,
+                      damping: 30,
+                      delay: index * 0.13,
+                    }}
                     className={cn(
                       "relative rounded-sm border p-3",
                       active
