@@ -13,6 +13,7 @@ import {
 import { cn } from "@/shared/lib/cn";
 
 import { useIngest } from "../hooks/useIngest";
+import { TextShimmer } from "./TextShimmer";
 
 interface Props {
   onSubmit: (question: string, deep: boolean, ingested: string[]) => void;
@@ -211,14 +212,25 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
           <button
             type="button"
             onClick={() => setDeep((on) => !on)}
+            aria-pressed={deep}
             className={cn(
-              "rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
+              "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
               deep
-                ? "bg-accent/15 text-accent"
-                : "text-foreground/45 hover:bg-foreground/10 hover:text-foreground/70",
+                ? "border-foreground/25 bg-accent/[0.08]"
+                : "border-foreground/25 bg-foreground/[0.04] text-foreground/70 hover:border-foreground/45 hover:text-foreground/90",
             )}
           >
-            Deep research
+            {deep ? (
+              <TextShimmer
+                duration={2.2}
+                baseColor="color-mix(in oklab, var(--accent) 55%, transparent)"
+                shimmerColor="var(--accent)"
+              >
+                Deep research
+              </TextShimmer>
+            ) : (
+              "Deep research"
+            )}
           </button>
 
           <div className="flex-1" />
