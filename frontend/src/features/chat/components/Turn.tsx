@@ -12,6 +12,7 @@ import { Answer } from "./Answer";
 import { Related } from "./Related";
 import { SourcesStrip } from "./SourcesStrip";
 import { Steps } from "./Steps";
+import { TextShimmer } from "./TextShimmer";
 
 export function Turn({
   turn,
@@ -49,7 +50,7 @@ export function Turn({
         transition={{ duration: 0.4, ease: editorialEase }}
         className="mb-5 font-sans text-[22px] font-semibold leading-snug tracking-tight"
       >
-        <SweepText text={turn.question} active={thinking} />
+        {thinking ? <TextShimmer duration={1.6}>{turn.question}</TextShimmer> : turn.question}
       </motion.h2>
 
       <Steps events={turn.events} streaming={streaming} />
@@ -97,30 +98,6 @@ export function Turn({
 
       {!streaming && <Related questions={turn.related ?? []} onPick={onFollowUp} />}
     </article>
-  );
-}
-
-// Renders the question as a single string normally; while `active`, splits it
-// into per-character spans whose sweep animation is delayed in reading order,
-// so a glow travels first character → last (line by line, never all lines at
-// once). Falls back to plain text the instant the answer starts.
-function SweepText({ text, active }: { text: string; active: boolean }) {
-  if (!active) return <>{text}</>;
-  const chars = Array.from(text);
-  const total = chars.length;
-  return (
-    <>
-      {chars.map((char, index) => (
-        <span
-          // biome-ignore lint/suspicious/noArrayIndexKey: fixed character split, never reordered.
-          key={index}
-          className="argus-sweep-char"
-          style={{ animationDelay: `${(index / total) * 2.5}s` }}
-        >
-          {char}
-        </span>
-      ))}
-    </>
   );
 }
 

@@ -48,31 +48,6 @@ body {
   }
 }
 
-/* Per-character light sweep over the just-sent question while the agents work.
-   Each character briefly lifts to the accent with a glow; the spans are
-   staggered in reading order (set inline as animation-delay) so the light
-   travels first character → last, line by line — not every line at the same
-   column at once. Stops once the answer begins; static under reduced-motion. */
-.argus-sweep-char {
-  animation: argus-sweep 2.5s linear infinite;
-}
-@keyframes argus-sweep {
-  0%,
-  16%,
-  100% {
-    color: var(--foreground);
-    text-shadow: none;
-  }
-  7% {
-    color: var(--accent);
-    text-shadow: 0 0 12px color-mix(in oklab, var(--accent) 70%, transparent);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .argus-sweep-char {
-    animation: none;
-  }
-}
 
 /* Editorial prose for the streamed Markdown answer (serif body, no typography plugin). */
 .answer-prose {
