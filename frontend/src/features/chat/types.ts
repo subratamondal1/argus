@@ -11,13 +11,20 @@ export interface AgentEvent {
     | "synthesize"
     | "reflect"
     | "token"
+    | "triage"
     | "answer"
+    | "artifact"
     | "related"
     | "error"
     | "done";
   sub_question?: string;
   sub_questions?: string[];
   questions?: string[];
+  strategy?: string;
+  reasoning?: string;
+  title?: string;
+  kind?: string;
+  content?: string;
   name?: string;
   query?: string;
   n?: number;

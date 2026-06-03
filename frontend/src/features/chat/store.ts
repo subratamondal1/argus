@@ -5,12 +5,19 @@ import { persist } from "zustand/middleware";
 
 import type { AgentEvent, ChatStatus } from "./types";
 
+export interface Artifact {
+  title: string;
+  kind: string;
+  content: string;
+}
+
 export interface Turn {
   id: string;
   question: string;
   deep: boolean;
   events: AgentEvent[];
   answer: string;
+  artifact: Artifact | null;
   related: string[];
   status: ChatStatus;
   error: string | null;

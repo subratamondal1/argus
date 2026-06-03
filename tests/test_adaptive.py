@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from argus.agent.adaptive import AdaptiveOrchestrator, Strategy, Triage
-from argus.agent.events import EventSink
+from argus.agent.events import AgentEvent, EventSink
 from argus.agent.loop import AgentResult
 from argus.agent.orchestrator import ResearchReport
 
@@ -80,3 +80,26 @@ async def test_force_research_skips_triage_and_plans() -> None:
     report = await adaptive.run("anything", force_research=True)
     assert report.answer == "planned report"
     assert orchestrator.run_called is True
+
+
+async def test_research_emits_a_report_artifact_but_direct_does_not() -> None:
+    research_events: list[AgentEvent] = []
+    direct_events: list[AgentEvent] = []
+
+    async def research_sink(event: AgentEvent) -> None:
+        research_events.append(event)
+
+    async def direct_sink(event: AgentEvent) -> None:
+        direct_events.append(event)
+
+    research = _adaptive(
+        Triage(strategy=Strategy.RESEARCH, reasoning="x", sub_questions=["q1"]), _FakeOrchestrator()
+    )
+    await research.run("research X", on_event=research_sink)
+    artifact = next(event for event in research_events if event.kind == "artifact")
+    assert artifact.data["kind"] == "report"
+    assert artifact.data["content"] == "research report"
+
+    direct = _adaptive(Triage(strategy=Strategy.DIRECT, reasoning="simple"), _FakeOrchestrator())
+    await direct.run("hi", on_event=direct_sink)
+    assert "artifact" not in [event.kind for event in direct_events]

@@ -79,7 +79,9 @@ class AdaptiveOrchestrator:
             await emit(
                 on_event, "triage", strategy="research", reasoning="forced", sub_questions=[]
             )
-            return await self.orchestrator.run(question, on_event=on_event)
+            report = await self.orchestrator.run(question, on_event=on_event)
+            await _emit_report_artifact(on_event, report)
+            return report
 
         triage: Triage = await self.llm.complete_structured(
             triage_messages(question, self.max_sub_questions), Triage
@@ -95,11 +97,21 @@ class AdaptiveOrchestrator:
 
         if triage.strategy is Strategy.RESEARCH:
             if triage.sub_questions:
-                return await self.orchestrator.research(
+                report = await self.orchestrator.research(
                     question, triage.sub_questions, on_event=on_event
                 )
-            return await self.orchestrator.run(question, on_event=on_event)
+            else:
+                report = await self.orchestrator.run(question, on_event=on_event)
+            await _emit_report_artifact(on_event, report)
+            return report
 
         result = await self.build_loop().run(question, on_event=on_event, stream_tokens=True)
         await emit(on_event, "answer", text=result.answer)
         return ResearchReport(question=question, answer=result.answer, findings=[], rounds=0)
+
+
+async def _emit_report_artifact(on_event: EventSink | None, report: ResearchReport) -> None:
+    if report.answer.strip():
+        await emit(
+            on_event, "artifact", title="Research report", kind="report", content=report.answer
+        )

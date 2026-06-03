@@ -33,6 +33,7 @@ export function useAsk(): Ask {
       deep,
       events: [],
       answer: "",
+      artifact: null,
       related: [],
       status: "streaming",
       error: null,
@@ -54,6 +55,16 @@ export function useAsk(): Ask {
       }
       if (event.type === "related") {
         patch(conversationId, turnId, { related: event.questions ?? [] });
+        return;
+      }
+      if (event.type === "artifact") {
+        patch(conversationId, turnId, {
+          artifact: {
+            title: event.title ?? "Report",
+            kind: event.kind ?? "report",
+            content: event.content ?? "",
+          },
+        });
         return;
       }
       if (event.type === "error") {
