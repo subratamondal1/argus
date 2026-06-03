@@ -69,13 +69,13 @@ function Hero({ onPick }: { onPick: (question: string) => void }) {
           your documents, then cites its sources.
         </p>
       </div>
-      <div className="flex w-full max-w-xl flex-col gap-2">
+      <div className="flex w-full max-w-2xl flex-col items-center gap-2.5">
         {EXAMPLES.map((example) => (
           <button
             key={example}
             type="button"
             onClick={() => onPick(example)}
-            className="rounded-md border border-foreground/15 px-4 py-2.5 text-left text-sm text-foreground/70 transition hover:border-accent/55 hover:text-foreground"
+            className="w-fit max-w-full rounded-full border border-foreground/20 px-5 py-2.5 text-center text-sm text-foreground/70 transition hover:border-accent/55 hover:text-foreground hover:shadow-[0_0_20px_-8px_rgba(37,99,235,0.5)] dark:hover:shadow-[0_0_24px_-8px_rgba(106,166,255,0.55)]"
           >
             {example}
           </button>

@@ -101,7 +101,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
           event.preventDefault();
           send();
         }}
-        className="rounded-md border border-foreground/15 bg-surface focus-within:border-foreground/30"
+        className="rounded-xl border border-foreground/25 bg-surface shadow-[0_8px_30px_-14px_rgba(0,0,0,0.7)] transition-all duration-200 focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_10px_34px_-12px_rgba(37,99,235,0.4)] dark:focus-within:shadow-[0_0_0_3px_rgba(106,166,255,0.18),0_12px_40px_-12px_rgba(106,166,255,0.4)]"
       >
         <textarea
           value={value}
@@ -109,7 +109,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
           onKeyDown={onKeyDown}
           placeholder="Ask Argus anything…"
           rows={1}
-          className="max-h-48 w-full resize-none bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/40"
+          className="max-h-48 w-full resize-none bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/50"
           // biome-ignore lint/a11y/noAutofocus: the composer is the page's primary action; focusing it on load is the intended single-input UX.
           autoFocus
         />
