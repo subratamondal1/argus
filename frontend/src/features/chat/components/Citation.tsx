@@ -46,7 +46,7 @@ export function Citation({
       </sup>
       <span
         role="tooltip"
-        className="invisible absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-md border border-foreground/20 bg-surface px-3 py-2.5 opacity-0 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)] transition-[opacity,visibility] duration-150 ease-out group-hover:visible group-hover:opacity-100"
+        className="invisible absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-sm border border-foreground/25 bg-surface px-3 py-2.5 opacity-0 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.55)] transition-[opacity,visibility] duration-150 ease-out group-hover:visible group-hover:opacity-100"
       >
         <span className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-widest text-foreground/55">
           <span className="text-accent">[{source.id}]</span>

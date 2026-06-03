@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Copy, Loader2, Share2 } from "lucide-react";
+import { Check, Copy, Share2 } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/shared/lib/cn";
@@ -26,17 +26,19 @@ export function Turn({
   // Turns persisted before the sources field existed rehydrate without it.
   const sources = turn.sources ?? [];
 
-  const isResearch =
-    turn.deep ||
-    turn.events.some(
-      (event) =>
-        event.type === "plan" || (event.type === "triage" && event.strategy === "research"),
-    );
+  // The strategy is unknown until triage routes the request, so don't label it
+  // until then — guessing "Direct answer" on a request that's about to fan out
+  // reads as wrong while it spins up.
+  const triageStrategy = turn.events.find((event) => event.type === "triage")?.strategy;
+  const planned = turn.events.some((event) => event.type === "plan");
+  const isResearch = turn.deep || triageStrategy === "research" || planned;
+  const known = turn.deep || triageStrategy !== undefined || planned || !streaming;
+  const eyebrow = isResearch ? "Deep research" : known ? "Direct answer" : "Working";
 
   return (
     <article className="border-b border-foreground/10 py-8 first:pt-2 last:border-0">
       <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
-        {isResearch ? "Deep research" : "Direct answer"}
+        {eyebrow}
       </p>
       <motion.h2
         initial={{ opacity: 0, y: 8 }}
@@ -57,7 +59,7 @@ export function Turn({
       />
 
       {turn.answer.length > 0 && (
-        <section className="mb-2 rounded-md border border-foreground/15 bg-foreground/[0.01]">
+        <section className="mb-2 rounded-sm border border-foreground/20 bg-surface">
           <header className="flex items-center justify-between gap-3 border-b border-foreground/15 px-4 py-2.5">
             <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">
               Answer
@@ -82,12 +84,6 @@ export function Turn({
             />
           </div>
         </section>
-      )}
-
-      {streaming && turn.events.length === 0 && turn.answer.length === 0 && (
-        <div className="flex items-center gap-2 text-sm text-foreground/45">
-          <Loader2 className="h-4 w-4 animate-spin" /> thinking…
-        </div>
       )}
 
       {turn.error !== null && (

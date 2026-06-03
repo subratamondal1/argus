@@ -21,11 +21,14 @@ interface Grouped {
   strategy: string | null;
   reasoning: string | null;
   planned: number | null;
+  plannedQuestions: string[];
   agents: AgentCard[];
   tools: string[];
   synthFindings: number | null;
   reflection: string | null;
 }
+
+const RESEARCHER_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 function group(events: AgentEvent[]): Grouped {
   const order: string[] = [];
@@ -35,6 +38,7 @@ function group(events: AgentEvent[]): Grouped {
     strategy: null,
     reasoning: null,
     planned: null,
+    plannedQuestions: [],
     agents: [],
     tools,
     synthFindings: null,
@@ -46,7 +50,8 @@ function group(events: AgentEvent[]): Grouped {
       grouped.strategy = event.strategy ?? null;
       grouped.reasoning = event.reasoning ?? null;
     } else if (event.type === "plan") {
-      grouped.planned = (event.sub_questions ?? []).length;
+      grouped.plannedQuestions = event.sub_questions ?? [];
+      grouped.planned = grouped.plannedQuestions.length;
     } else if (event.type === "synthesize") {
       grouped.synthFindings = event.findings ?? 0;
     } else if (event.type === "reflect") {
@@ -79,7 +84,17 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
   const g = group(events);
   const isResearch = g.agents.length > 0 || g.planned !== null || g.strategy === "research";
   const hasBody = g.reasoning !== null || g.agents.length > 0 || g.tools.length > 0;
-  if (g.strategy === null && !hasBody) return null;
+
+  // Nothing has come back yet but the request is in flight — show the panel
+  // immediately with a running "Routing" row instead of a bare spinner, so the
+  // turn never reads as empty while the triage step decides.
+  if (g.strategy === null && !hasBody) {
+    return streaming ? (
+      <Panel title="Steps" meta="Working">
+        <PhaseRow label="Routing" detail="Deciding how to answer…" status="running" />
+      </Panel>
+    ) : null;
+  }
 
   return isResearch ? (
     <ResearchSteps g={g} streaming={streaming} />
@@ -93,8 +108,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
   const allAgentsDone = g.agents.length > 0 && doneAgents === g.agents.length;
   const synthSeen = g.synthFindings !== null;
 
-  const plannerStatus: Status =
-    g.planned !== null ? "complete" : streaming ? "running" : "idle";
+  const plannerStatus: Status = g.planned !== null ? "complete" : streaming ? "running" : "idle";
   const researchersStatus: Status =
     g.agents.length === 0
       ? g.planned !== null && streaming
@@ -118,10 +132,26 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
       )}
 
       <PhaseRow
-        label="Planner"
+        label="Planner Agent"
         detail={plannerDetail(plannerStatus, g.planned ?? 0)}
         status={plannerStatus}
-      />
+      >
+        {g.plannedQuestions.length > 0 && (
+          <ol className="space-y-1.5">
+            {g.plannedQuestions.map((question, index) => (
+              <li
+                key={question}
+                className="flex items-start gap-2.5 font-serif text-[13px] leading-snug text-foreground/85"
+              >
+                <span className="mt-0.5 font-mono text-[11px] tabular-nums text-foreground/40">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="flex-1">{question}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </PhaseRow>
 
       <PhaseRow
         label={g.agents.length > 0 ? `${g.agents.length} Parallel Researchers` : "Researchers"}
@@ -141,10 +171,10 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ duration: 0.35, ease: editorialEase }}
                     className={cn(
-                      "rounded-md border p-3 transition-shadow",
+                      "rounded-sm border p-3 transition-shadow",
                       active
                         ? "border-accent/70 bg-accent/[0.06] shadow-[0_0_22px_-6px_rgba(37,99,235,0.55)] dark:shadow-[0_0_26px_-4px_rgba(106,166,255,0.7)]"
-                        : "border-foreground/20 bg-surface",
+                        : "border-foreground/20 bg-background",
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -167,7 +197,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
                           active ? "text-accent" : "text-foreground/55",
                         )}
                       >
-                        Agent {index + 1}
+                        Researcher {RESEARCHER_LABELS[index] ?? index + 1}
                       </span>
                       <span className="ml-auto font-mono text-[9px] uppercase tracking-widest">
                         {active ? (
@@ -199,7 +229,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
       </PhaseRow>
 
       <PhaseRow
-        label="Synthesizer"
+        label="Synthesizer Agent"
         detail={synthesizerDetail(synthesizerStatus, g.reflection)}
         status={synthesizerStatus}
       />
@@ -233,7 +263,7 @@ function DirectSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
 
 function Panel({ title, meta, children }: { title: string; meta: string; children: ReactNode }) {
   return (
-    <section className="mb-5 overflow-hidden rounded-md border border-foreground/15 bg-foreground/[0.02]">
+    <section className="mb-5 overflow-hidden rounded-sm border border-foreground/20 bg-surface">
       <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
         <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">{title}</p>
         <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
@@ -346,9 +376,7 @@ function StatusPill({ status }: { status: Status }) {
       : status === "running"
         ? "text-accent"
         : "text-accent/65";
-  return (
-    <span className={cn("font-mono text-[9px] uppercase tracking-widest", tone)}>{text}</span>
-  );
+  return <span className={cn("font-mono text-[9px] uppercase tracking-widest", tone)}>{text}</span>;
 }
 
 function plannerDetail(status: Status, planned: number): string {

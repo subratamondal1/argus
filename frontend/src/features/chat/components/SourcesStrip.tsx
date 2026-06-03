@@ -37,7 +37,7 @@ export function SourcesStrip({
   if (sources.length === 0) return null;
 
   return (
-    <section className="mb-5 overflow-hidden rounded-md border border-foreground/15 bg-foreground/[0.02]">
+    <section className="mb-5 overflow-hidden rounded-sm border border-foreground/20 bg-surface">
       <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
         <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">Sources</p>
         <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
@@ -66,10 +66,10 @@ export function SourcesStrip({
                 onFocus={() => onEnter(source.id)}
                 onBlur={onLeave}
                 className={cn(
-                  "block w-[260px] shrink-0 cursor-pointer rounded-md border bg-surface px-3 py-2.5 no-underline transition-all duration-200 ease-out",
+                  "block w-[260px] shrink-0 cursor-pointer rounded-sm border bg-background px-3 py-2.5 no-underline transition-all duration-200 ease-out",
                   active
                     ? "border-accent/70 shadow-[0_0_24px_-6px_rgba(37,99,235,0.55)] dark:shadow-[0_0_30px_-4px_rgba(106,166,255,0.7)]"
-                    : "border-foreground/15 hover:border-foreground/35",
+                    : "border-foreground/20 hover:border-foreground/40",
                 )}
               >
                 <div className="mb-1.5 flex items-center justify-between gap-2">
