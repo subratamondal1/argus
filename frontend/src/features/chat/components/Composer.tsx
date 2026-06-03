@@ -28,7 +28,15 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { ingestUrl, uploadFile, clearError, status, error, sources } = useIngest();
+
+  // Grow the textarea to fit its content up to ~8 lines (192px = max-h-48),
+  // then scroll. Native rows={1} alone would clip multi-line input.
+  function autosize(el: HTMLTextAreaElement): void {
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+  }
 
   function send(): void {
     const question = value.trim();
@@ -39,6 +47,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
       sources.map((source) => source.label),
     );
     setValue("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -109,12 +118,16 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         className="rounded-2xl border border-foreground/30 bg-foreground/[0.05] shadow-[0_10px_34px_-14px_rgba(0,0,0,0.8)] transition-all duration-200 focus-within:border-accent/60 focus-within:bg-foreground/[0.07] focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_12px_38px_-12px_rgba(37,99,235,0.4)] dark:focus-within:shadow-[0_0_0_3px_rgba(106,166,255,0.18),0_14px_44px_-12px_rgba(106,166,255,0.4)]"
       >
         <textarea
+          ref={textareaRef}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            setValue(event.target.value);
+            autosize(event.target);
+          }}
           onKeyDown={onKeyDown}
           placeholder="Ask Argus anything…"
           rows={1}
-          className="max-h-48 w-full resize-none bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/50"
+          className="max-h-48 w-full resize-none overflow-y-auto bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/50"
           // biome-ignore lint/a11y/noAutofocus: the composer is the page's primary action; focusing it on load is the intended single-input UX.
           autoFocus
         />

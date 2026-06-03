@@ -131,8 +131,13 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
     (status) => status === "complete",
   ).length;
 
+  // The outer panel beam fills the gaps where no inner card is beaming — the
+  // planner and synthesizer phases — and steps aside the moment a researcher
+  // card lights up, so an inner and outer beam never run at the same time.
+  const anyAgentActive: boolean = streaming && g.agents.some((agent) => !agent.done);
+
   return (
-    <Panel title="Steps" meta={`${completed} of 3 complete`} beam={streaming}>
+    <Panel title="Steps" meta={`${completed} of 3 complete`} beam={streaming && !anyAgentActive}>
       {g.reasoning !== null && (
         <p className="border-b border-foreground/10 px-4 py-3 font-serif text-[13px] italic leading-snug text-foreground/65">
           {g.reasoning}
@@ -225,7 +230,12 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
                       </span>
                     </div>
                     <p
-                      className="mt-2 line-clamp-2 font-serif text-[13px] leading-snug text-foreground/90"
+                      className={cn(
+                        "mt-2 line-clamp-2 font-serif text-[13px] leading-snug",
+                        active
+                          ? "argus-shimmer bg-clip-text text-transparent"
+                          : "text-foreground/90",
+                      )}
                       title={agent.subQuestion}
                     >
                       {agent.subQuestion}
@@ -351,7 +361,16 @@ function PhaseRow({
               )}
             </span>
           </button>
-          <p className="mt-1 font-serif text-[13px] leading-snug text-foreground/65">{detail}</p>
+          <p
+            className={cn(
+              "mt-1 font-serif text-[13px] leading-snug",
+              status === "running"
+                ? "argus-shimmer bg-clip-text text-transparent"
+                : "text-foreground/65",
+            )}
+          >
+            {detail}
+          </p>
           <AnimatePresence initial={false}>
             {expanded && (
               <motion.div
