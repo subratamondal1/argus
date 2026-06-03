@@ -35,10 +35,20 @@ class LLMResponse:
 
 
 class LLMClient:
-    def __init__(self, *, model: str, timeout_s: float, temperature: float | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        model: str,
+        timeout_s: float,
+        temperature: float | None = None,
+        num_retries: int = 2,
+    ) -> None:
         self._model: str = model
         self._timeout: float = timeout_s
         self._temperature: float | None = temperature
+        # litellm retries transient failures (timeouts, rate limits, 5xx) with
+        # backoff, so a one-off API hiccup never surfaces to the user.
+        self._num_retries: int = num_retries
 
     def _sampling_kwargs(self) -> dict[str, Any]:
         return {} if self._temperature is None else {"temperature": self._temperature}
@@ -56,6 +66,7 @@ class LLMClient:
                 messages=messages,
                 tools=tools,
                 timeout=self._timeout,
+                num_retries=self._num_retries,
                 **self._sampling_kwargs(),
             )
         else:
@@ -74,6 +85,7 @@ class LLMClient:
             messages=messages,
             tools=tools,
             timeout=self._timeout,
+            num_retries=self._num_retries,
             stream=True,
             stream_options={"include_usage": True},
             **self._sampling_kwargs(),
@@ -120,6 +132,7 @@ class LLMClient:
             messages=messages,
             response_format=schema,
             timeout=self._timeout,
+            num_retries=self._num_retries,
             **self._sampling_kwargs(),
         )
         content: str = response.choices[0].message.content or "{}"
