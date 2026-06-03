@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { AgentEvent, ChatStatus } from "./types";
+import type { AgentEvent, ChatStatus, Source } from "./types";
 
 export interface Artifact {
   title: string;
@@ -17,6 +17,7 @@ export interface Turn {
   deep: boolean;
   events: AgentEvent[];
   answer: string;
+  sources: Source[];
   artifact: Artifact | null;
   related: string[];
   status: ChatStatus;
