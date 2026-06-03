@@ -128,3 +128,95 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
   font-weight: 600;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BorderBeam — a luminous accent arc that travels CLOCKWISE around a 1px
+   border ring to signal "an agent is running". Drives both exports of the
+   BorderBeam component (src/features/chat/components/BorderBeam.tsx) — the
+   <BorderBeam> wrapper div and the <BorderBeamRing> overlay span — which share
+   this class `argus-border-beam` and toggle `data-beam="on" | "off"`.
+
+   Technique (Magic-UI BorderBeam): the wrapper's ::before pseudo-element fills
+   the box and paints a rotating conic-gradient — one bright accent arc fading
+   into transparency. The fill is clipped to the 1px border band by stacking two
+   masks and compositing them with `exclude` (content-box layer subtracted from
+   the border-box layer ⇒ only the 1px padding ring survives). Rotation is the
+   registered `@property --angle`, animated in a keyframe.
+
+   Why @property: a conic-gradient's `from <angle>` only sweeps smoothly when the
+   angle is a TYPED custom property. Registering --angle as <angle> lets the
+   browser interpolate it on the compositor, so ONLY --angle changes per frame —
+   no layout, no paint of the wrapped content, no box-shadow spread. That is what
+   keeps ~6 concurrent beams cheap. The 1px ring overlays the host's existing
+   border (same band), so layout never shifts and content is untouched. When
+   data-beam="off" the ::before is removed and the host's plain border shows.
+   ───────────────────────────────────────────────────────────────────────── */
+@property --angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* No bare `.argus-border-beam { position: relative }` rule on purpose: the
+   wrapper form supplies `relative` via its Tailwind class, and the overlay
+   form (BorderBeamRing) is `absolute inset-0`. A shared position rule would
+   load after Tailwind and override the overlay's `absolute`, collapsing it. */
+.argus-border-beam[data-beam="on"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  /* Match the host's rounded-sm so the ring follows the corners. */
+  border-radius: inherit;
+  /* The 1px padding band is exactly what the exclude-mask keeps. */
+  padding: 1px;
+  /* One bright accent arc (peaking at the start angle) that fades symmetrically
+     into transparency on both sides, then transparent for the rest of the ring —
+     an editorial thread of light, not a full saturated RGB border. */
+  background: conic-gradient(
+    from var(--angle),
+    var(--accent) 0deg,
+    color-mix(in oklab, var(--accent) 55%, transparent) 18deg,
+    color-mix(in oklab, var(--accent) 0%, transparent) 50deg,
+    transparent 140deg,
+    transparent 220deg,
+    color-mix(in oklab, var(--accent) 0%, transparent) 310deg,
+    color-mix(in oklab, var(--accent) 55%, transparent) 342deg,
+    var(--accent) 360deg
+  );
+  /* Two-layer mask → keep only the 1px ring. The content-box layer covers the
+     interior; the border-box layer (default) covers the whole box; `exclude`
+     subtracts the interior, leaving just the 1px padding band visible. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; /* WebKit/Safari spelling of "exclude" */
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  /* Clockwise sweep. linear keeps the head at constant speed (an eased loop
+     visibly stutters at the seam). Duration comes from the inline --beam-duration
+     the component sets per instance. */
+  animation: argus-border-beam var(--beam-duration, 4s) linear infinite;
+  will-change: --angle;
+}
+
+@keyframes argus-border-beam {
+  to {
+    --angle: 360deg;
+  }
+}
+
+/* Reduced-motion: no travel. Freeze the ring as a static, soft, low-saturation
+   accent border instead of sweeping — the conic head sits at its initial angle
+   and reads as a refined thread rather than animated light. will-change is
+   dropped so the compositor layer is released. */
+@media (prefers-reduced-motion: reduce) {
+  .argus-border-beam[data-beam="on"]::before {
+    animation: none;
+    will-change: auto;
+    background: color-mix(in oklab, var(--accent) 50%, transparent);
+  }
+}

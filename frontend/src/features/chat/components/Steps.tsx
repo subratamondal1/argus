@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/cn";
 import { editorialEase } from "@/shared/lib/motion";
 
 import type { AgentEvent } from "../types";
+import { BorderBeam, BorderBeamRing } from "./BorderBeam";
 
 type Status = "idle" | "running" | "complete";
 
@@ -97,7 +98,7 @@ export function Steps({ events, streaming }: { events: AgentEvent[]; streaming: 
   // turn never reads as empty while the triage step decides.
   if (g.strategy === null && !hasBody) {
     return streaming ? (
-      <Panel title="Steps" meta="Working">
+      <Panel title="Steps" meta="Working" beam>
         <PhaseRow label="Routing" detail="Deciding how to answer…" status="running" />
       </Panel>
     ) : null;
@@ -131,7 +132,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
   ).length;
 
   return (
-    <Panel title="Steps" meta={`${completed} of 3 complete`}>
+    <Panel title="Steps" meta={`${completed} of 3 complete`} beam={streaming}>
       {g.reasoning !== null && (
         <p className="border-b border-foreground/10 px-4 py-3 font-serif text-[13px] italic leading-snug text-foreground/65">
           {g.reasoning}
@@ -178,12 +179,13 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ duration: 0.35, ease: editorialEase }}
                     className={cn(
-                      "rounded-sm border p-3 transition-shadow",
+                      "relative rounded-sm border p-3",
                       active
-                        ? "border-accent/70 bg-accent/[0.06] shadow-[0_0_22px_-6px_rgba(37,99,235,0.55)] dark:shadow-[0_0_26px_-4px_rgba(106,166,255,0.7)]"
+                        ? "border-accent/40 bg-accent/[0.04]"
                         : "border-foreground/20 bg-background",
                     )}
                   >
+                    <BorderBeamRing active={active} duration={3.2 + (index % 3) * 0.5} />
                     <div className="flex items-center gap-2">
                       {agent.done ? (
                         <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent">
@@ -247,7 +249,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
 function DirectSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
   const status: Status = streaming ? "running" : "complete";
   return (
-    <Panel title="Steps" meta="Direct">
+    <Panel title="Steps" meta="Direct" beam={streaming}>
       <PhaseRow
         label="Direct answer"
         detail={g.reasoning ?? (streaming ? "Answering directly…" : "Answered directly.")}
@@ -268,19 +270,31 @@ function DirectSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
   );
 }
 
-function Panel({ title, meta, children }: { title: string; meta: string; children: ReactNode }) {
+function Panel({
+  title,
+  meta,
+  beam = false,
+  children,
+}: {
+  title: string;
+  meta: string;
+  beam?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <section className="mb-5 overflow-hidden rounded-sm border border-foreground/20 bg-surface">
-      <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">
-          {title}
-        </p>
-        <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
-          {meta}
-        </p>
-      </header>
-      <ol>{children}</ol>
-    </section>
+    <BorderBeam active={beam} duration={5} className="mb-5">
+      <section className="overflow-hidden rounded-sm border border-foreground/20 bg-surface">
+        <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">
+            {title}
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
+            {meta}
+          </p>
+        </header>
+        <ol>{children}</ol>
+      </section>
+    </BorderBeam>
   );
 }
 
