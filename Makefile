@@ -27,7 +27,7 @@ serve:
 	uv run argus serve --reload
 
 web-install:
-	cd frontend && npm install
+	cd frontend && bun install
 
 web:
 	bash scripts/web.sh

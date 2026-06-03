@@ -39,7 +39,9 @@ export function SourcesStrip({
   return (
     <section className="mb-5 overflow-hidden rounded-sm border border-foreground/20 bg-surface">
       <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">Sources</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">
+          Sources
+        </p>
         <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
           {sources.length} retrieved
         </p>

@@ -65,8 +65,8 @@ function Hero({ onPick }: { onPick: (question: string) => void }) {
           What do you want to research?
         </h1>
         <p className="mx-auto mt-3 max-w-md font-serif text-[15px] italic leading-relaxed text-foreground/55">
-          Argus decides whether to answer directly or fan out a team of agents over the live web
-          and your documents, then cites its sources.
+          Argus decides whether to answer directly or fan out a team of agents over the live web and
+          your documents, then cites its sources.
         </p>
       </div>
       <div className="flex w-full max-w-xl flex-col gap-2">

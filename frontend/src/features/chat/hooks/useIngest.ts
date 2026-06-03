@@ -36,10 +36,7 @@ export function useIngest(): Ingest {
   async function record(response: Response): Promise<void> {
     if (!response.ok) throw new Error(`ingest failed: HTTP ${response.status}`);
     const data = (await response.json()) as IngestResponse;
-    setSources((prev) => [
-      { label: data.source_uri, chunks: data.chunks_written },
-      ...prev,
-    ]);
+    setSources((prev) => [{ label: data.source_uri, chunks: data.chunks_written }, ...prev]);
     setStatus("done");
   }
 

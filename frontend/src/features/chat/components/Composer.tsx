@@ -55,6 +55,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop dropzone wraps the composer; file upload is also reachable via the paperclip button.
     <div
       className="relative"
       onDragOver={(event) => {
@@ -109,6 +110,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
           placeholder="Ask Argus anything…"
           rows={1}
           className="max-h-48 w-full resize-none bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/40"
+          // biome-ignore lint/a11y/noAutofocus: the composer is the page's primary action; focusing it on load is the intended single-input UX.
           autoFocus
         />
 

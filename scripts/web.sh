@@ -10,5 +10,5 @@ trap cleanup EXIT INT TERM
 echo "argus: starting backend on http://localhost:8000 and frontend on http://localhost:3000"
 
 uv run argus serve --reload &
-( cd frontend && npm run dev ) &
+( cd frontend && bun run dev ) &
 wait

@@ -17,13 +17,18 @@ interface AgentCard {
   done: boolean;
 }
 
+interface ToolEntry {
+  id: number;
+  text: string;
+}
+
 interface Grouped {
   strategy: string | null;
   reasoning: string | null;
   planned: number | null;
   plannedQuestions: string[];
   agents: AgentCard[];
-  tools: string[];
+  tools: ToolEntry[];
   synthFindings: number | null;
   reflection: string | null;
 }
@@ -31,9 +36,9 @@ interface Grouped {
 const RESEARCHER_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 function group(events: AgentEvent[]): Grouped {
-  const order: string[] = [];
+  const agents: AgentCard[] = [];
   const map = new Map<string, AgentCard>();
-  const tools: string[] = [];
+  const tools: ToolEntry[] = [];
   const grouped: Grouped = {
     strategy: null,
     reasoning: null,
@@ -60,23 +65,25 @@ function group(events: AgentEvent[]): Grouped {
         : `following up on ${(event.missing ?? []).length}`;
     } else if (event.sub_question !== undefined) {
       const question = event.sub_question;
-      if (!map.has(question)) {
-        map.set(question, { subQuestion: question, tool: null, done: false });
-        order.push(question);
+      let card = map.get(question);
+      if (card === undefined) {
+        card = { subQuestion: question, tool: null, done: false };
+        map.set(question, card);
+        agents.push(card);
       }
-      const card = map.get(question);
-      if (card !== undefined) {
-        if (event.type === "tool") {
-          card.tool = `${event.name ?? "tool"}${event.query ? ` · ${event.query}` : ""}`;
-        }
-        if (event.type === "search_done") card.done = true;
+      if (event.type === "tool") {
+        card.tool = `${event.name ?? "tool"}${event.query ? ` · ${event.query}` : ""}`;
       }
+      if (event.type === "search_done") card.done = true;
     } else if (event.type === "tool") {
-      tools.push(`${event.name ?? "tool"}${event.query ? ` — ${event.query}` : ""}`);
+      tools.push({
+        id: tools.length,
+        text: `${event.name ?? "tool"}${event.query ? ` — ${event.query}` : ""}`,
+      });
     }
   }
 
-  grouped.agents = order.map((question) => map.get(question)!);
+  grouped.agents = agents;
   return grouped;
 }
 
@@ -248,10 +255,10 @@ function DirectSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
       >
         {g.tools.length > 0 && (
           <ol className="space-y-2">
-            {g.tools.map((tool, index) => (
-              <li key={index} className="flex items-center gap-2.5 text-sm text-foreground/65">
+            {g.tools.map((tool) => (
+              <li key={tool.id} className="flex items-center gap-2.5 text-sm text-foreground/65">
                 <Wrench className="h-4 w-4 shrink-0 text-accent/70" />
-                <span className="truncate">{tool}</span>
+                <span className="truncate">{tool.text}</span>
               </li>
             ))}
           </ol>
@@ -265,7 +272,9 @@ function Panel({ title, meta, children }: { title: string; meta: string; childre
   return (
     <section className="mb-5 overflow-hidden rounded-sm border border-foreground/20 bg-surface">
       <header className="flex items-center justify-between border-b border-foreground/15 px-4 py-2.5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">{title}</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/55">
+          {title}
+        </p>
         <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
           {meta}
         </p>
