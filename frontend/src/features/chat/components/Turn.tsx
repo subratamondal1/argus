@@ -23,6 +23,9 @@ export function Turn({
   const streaming = turn.status === "streaming";
   const [highlighted, setHighlighted] = useState<number | null>(null);
 
+  // Turns persisted before the sources field existed rehydrate without it.
+  const sources = turn.sources ?? [];
+
   const isResearch =
     turn.deep ||
     turn.events.some(
@@ -47,7 +50,7 @@ export function Turn({
       <Steps events={turn.events} streaming={streaming} />
 
       <SourcesStrip
-        sources={turn.sources}
+        sources={sources}
         highlighted={highlighted}
         onEnter={setHighlighted}
         onLeave={() => setHighlighted(null)}
@@ -63,7 +66,7 @@ export function Turn({
               <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
                 {streaming
                   ? "Streaming"
-                  : `Synthesized · ${turn.sources.length} source${turn.sources.length === 1 ? "" : "s"}`}
+                  : `Synthesized · ${sources.length} source${sources.length === 1 ? "" : "s"}`}
               </p>
               {!streaming && <AnswerActions question={turn.question} answer={turn.answer} />}
             </div>
@@ -72,7 +75,7 @@ export function Turn({
             <Answer
               text={turn.answer}
               streaming={streaming}
-              sources={turn.sources}
+              sources={sources}
               highlighted={highlighted}
               onCitationEnter={setHighlighted}
               onCitationLeave={() => setHighlighted(null)}

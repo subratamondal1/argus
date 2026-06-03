@@ -107,6 +107,20 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: "argus-chat",
+      version: 1,
+      // Turns saved before the sources field existed rehydrate without it;
+      // backfill an empty array so reads never hit undefined.
+      migrate: (persisted) => {
+        const state = persisted as { conversations?: Conversation[] } | undefined;
+        if (state?.conversations) {
+          for (const conversation of state.conversations) {
+            for (const turn of conversation.turns) {
+              if (turn.sources === undefined) turn.sources = [];
+            }
+          }
+        }
+        return state as ChatState;
+      },
       partialize: (state) => ({
         activeId: state.activeId,
         conversations: state.conversations.map((conversation) => ({
