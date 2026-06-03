@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Check, Link2, Loader2, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, Check, Link2, Loader2, Paperclip, Plus, Square, X } from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
@@ -15,7 +15,7 @@ import { cn } from "@/shared/lib/cn";
 import { useIngest } from "../hooks/useIngest";
 
 interface Props {
-  onSubmit: (question: string, deep: boolean) => void;
+  onSubmit: (question: string, deep: boolean, ingested: string[]) => void;
   onCancel: () => void;
   busy: boolean;
 }
@@ -25,6 +25,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const [deep, setDeep] = useState(false);
   const [url, setUrl] = useState("");
   const [showUrl, setShowUrl] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { ingestUrl, uploadFile, clearError, status, error, sources } = useIngest();
@@ -32,7 +33,11 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   function send(): void {
     const question = value.trim();
     if (question.length === 0 || busy) return;
-    onSubmit(question, deep);
+    onSubmit(
+      question,
+      deep,
+      sources.map((source) => source.label),
+    );
     setValue("");
   }
 
@@ -55,7 +60,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop dropzone wraps the composer; file upload is also reachable via the paperclip button.
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop dropzone wraps the composer; file upload is also reachable via the + menu.
     <div
       className="relative"
       onDragOver={(event) => {
@@ -66,7 +71,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
       onDrop={onDrop}
     >
       {dragging && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-accent bg-background/90 font-mono text-[11px] uppercase tracking-widest text-accent">
+        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-background/90 font-mono text-[11px] uppercase tracking-widest text-accent">
           Drop a file to ingest
         </div>
       )}
@@ -120,7 +125,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               placeholder="https://… or a local file path"
-              className="flex-1 rounded border border-foreground/15 bg-transparent px-3 py-1.5 text-sm outline-none"
+              className="flex-1 rounded-md border border-foreground/15 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-accent/50"
             />
             <button
               type="button"
@@ -129,31 +134,72 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                 if (trimmed.length > 0) {
                   void ingestUrl(trimmed);
                   setUrl("");
+                  setShowUrl(false);
                 }
               }}
-              className="rounded bg-foreground px-3 py-1.5 text-sm text-background"
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
             >
               Add
             </button>
           </div>
         )}
 
-        <div className="flex items-center gap-1 px-2.5 pb-2.5">
-          <IconButton title="Attach a file" onClick={() => fileRef.current?.click()}>
-            {status === "loading" ? (
-              <Loader2 className="h-[18px] w-[18px] animate-spin" />
-            ) : (
-              <Paperclip className="h-[18px] w-[18px]" />
+        <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Add a source"
+              aria-expanded={menuOpen}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full border transition",
+                menuOpen
+                  ? "border-accent/50 bg-accent/10 text-accent"
+                  : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground/90",
+              )}
+            >
+              {status === "loading" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className={cn("h-4 w-4 transition-transform", menuOpen && "rotate-45")} />
+              )}
+            </button>
+
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-30 cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-foreground/20 bg-surface shadow-[0_12px_40px_-12px_rgba(0,0,0,0.8)]">
+                  <MenuItem
+                    icon={<Paperclip className="h-4 w-4" />}
+                    label="Attach a file"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      fileRef.current?.click();
+                    }}
+                  />
+                  <MenuItem
+                    icon={<Link2 className="h-4 w-4" />}
+                    label="Ingest a URL"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowUrl(true);
+                    }}
+                  />
+                </div>
+              </>
             )}
-          </IconButton>
-          <IconButton title="Ingest a URL or path" onClick={() => setShowUrl((v) => !v)}>
-            <Link2 className="h-[18px] w-[18px]" />
-          </IconButton>
+          </div>
+
           <button
             type="button"
-            onClick={() => setDeep((value) => !value)}
+            onClick={() => setDeep((on) => !on)}
             className={cn(
-              "ml-1 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
+              "rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
               deep
                 ? "bg-accent/15 text-accent"
                 : "text-foreground/45 hover:bg-foreground/10 hover:text-foreground/70",
@@ -168,7 +214,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             <button
               type="button"
               onClick={onCancel}
-              className="rounded bg-foreground/15 p-2 text-foreground/80 transition hover:bg-foreground/25"
+              className="rounded-lg bg-foreground/15 p-2 text-foreground/80 transition hover:bg-foreground/25"
               aria-label="Stop"
             >
               <Square className="h-[18px] w-[18px]" />
@@ -177,7 +223,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             <button
               type="submit"
               disabled={value.trim().length === 0}
-              className="rounded bg-accent p-2 text-white transition hover:opacity-90 disabled:opacity-30"
+              className="rounded-lg bg-accent p-2 text-white transition hover:opacity-90 disabled:opacity-30"
               aria-label="Send"
             >
               <ArrowUp className="h-[18px] w-[18px]" />
@@ -197,23 +243,23 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   );
 }
 
-function IconButton({
-  title,
+function MenuItem({
+  icon,
+  label,
   onClick,
-  children,
 }: {
-  title: string;
+  icon: ReactNode;
+  label: string;
   onClick: () => void;
-  children: ReactNode;
 }) {
   return (
     <button
       type="button"
-      title={title}
       onClick={onClick}
-      className="rounded p-2 text-foreground/45 transition hover:bg-foreground/10 hover:text-foreground/75"
+      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm text-foreground/80 transition hover:bg-foreground/[0.06] hover:text-foreground"
     >
-      {children}
+      <span className="text-foreground/55">{icon}</span>
+      {label}
     </button>
   );
 }
