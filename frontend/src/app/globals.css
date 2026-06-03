@@ -48,32 +48,28 @@ body {
   }
 }
 
-/* Light-sweep shimmer for actively "thinking" agent text — a bright accent core
-   sweeps left → right across dimmed text. Pair this class with Tailwind's
-   `bg-clip-text text-transparent` (the clip itself, which Lightning CSS strips
-   from raw declarations but emits correctly from the utilities). This class
-   supplies only the gradient + the sweep, so a running agent's words read as
-   live work; under prefers-reduced-motion the gradient holds still. */
-.argus-shimmer {
-  background-image: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--foreground) 55%, transparent) 35%,
-    var(--accent) 50%,
-    color-mix(in oklab, var(--foreground) 55%, transparent) 65%
-  );
-  background-size: 200% 100%;
-  animation: argus-shimmer 2.4s ease-in-out infinite;
+/* Per-character light sweep over the just-sent question while the agents work.
+   Each character briefly lifts to the accent with a glow; the spans are
+   staggered in reading order (set inline as animation-delay) so the light
+   travels first character → last, line by line — not every line at the same
+   column at once. Stops once the answer begins; static under reduced-motion. */
+.argus-sweep-char {
+  animation: argus-sweep 2.5s linear infinite;
 }
-@keyframes argus-shimmer {
-  0% {
-    background-position: 150% 0;
-  }
+@keyframes argus-sweep {
+  0%,
+  16%,
   100% {
-    background-position: -50% 0;
+    color: var(--foreground);
+    text-shadow: none;
+  }
+  7% {
+    color: var(--accent);
+    text-shadow: 0 0 12px color-mix(in oklab, var(--accent) 70%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .argus-shimmer {
+  .argus-sweep-char {
     animation: none;
   }
 }

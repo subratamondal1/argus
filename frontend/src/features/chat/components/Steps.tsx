@@ -230,12 +230,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
                       </span>
                     </div>
                     <p
-                      className={cn(
-                        "mt-2 line-clamp-2 font-serif text-[13px] leading-snug",
-                        active
-                          ? "argus-shimmer bg-clip-text text-transparent"
-                          : "text-foreground/90",
-                      )}
+                      className="mt-2 line-clamp-2 font-serif text-[13px] leading-snug text-foreground/90"
                       title={agent.subQuestion}
                     >
                       {agent.subQuestion}
@@ -361,16 +356,7 @@ function PhaseRow({
               )}
             </span>
           </button>
-          <p
-            className={cn(
-              "mt-1 font-serif text-[13px] leading-snug",
-              status === "running"
-                ? "argus-shimmer bg-clip-text text-transparent"
-                : "text-foreground/65",
-            )}
-          >
-            {detail}
-          </p>
+          <p className="mt-1 font-serif text-[13px] leading-snug text-foreground/65">{detail}</p>
           <AnimatePresence initial={false}>
             {expanded && (
               <motion.div
