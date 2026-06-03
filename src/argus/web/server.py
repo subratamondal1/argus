@@ -25,7 +25,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from argus.agent.events import AgentEvent
 from argus.agent.prompts import related_questions_messages
-from argus.builders import build_loop, build_orchestrator
+from argus.builders import build_adaptive
 from argus.config import get_settings
 from argus.db import close_pool
 from argus.llm import LLMClient
@@ -116,14 +116,10 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
 
     async def run() -> None:
         try:
-            if request.deep:
-                report = await build_orchestrator().run(request.question, on_event=sink)
-                answer = report.answer
-            else:
-                result = await build_loop().run(request.question, on_event=sink, stream_tokens=True)
-                answer = result.answer
-                await sink(AgentEvent("answer", {"text": answer}))
-            related = await _related_questions(request.question, answer)
+            report = await build_adaptive().run(
+                request.question, on_event=sink, force_research=request.deep
+            )
+            related = await _related_questions(request.question, report.answer)
             if related:
                 await sink(AgentEvent("related", {"questions": related}))
         except Exception as error:

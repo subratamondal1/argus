@@ -92,7 +92,12 @@ class Orchestrator:
         plan: ResearchPlan = await self.llm.complete_structured(
             planner_messages(question, self.max_sub_questions), ResearchPlan
         )
-        pending: list[str] = plan.sub_questions[: self.max_sub_questions]
+        return await self.research(question, plan.sub_questions, on_event=on_event)
+
+    async def research(
+        self, question: str, sub_questions: list[str], *, on_event: EventSink | None = None
+    ) -> ResearchReport:
+        pending: list[str] = sub_questions[: self.max_sub_questions]
         await emit(on_event, "plan", sub_questions=pending)
         findings: list[Finding] = []
         draft: str = ""

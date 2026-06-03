@@ -6,6 +6,7 @@ two never form an import cycle).
 
 from __future__ import annotations
 
+from argus.agent.adaptive import AdaptiveOrchestrator
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop
 from argus.agent.orchestrator import Orchestrator
@@ -52,4 +53,13 @@ def build_orchestrator() -> Orchestrator:
         llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
         registry=build_registry(),
         searcher_budget=build_budget(settings),
+    )
+
+
+def build_adaptive() -> AdaptiveOrchestrator:
+    settings = get_settings()
+    return AdaptiveOrchestrator(
+        llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
+        build_loop=build_loop,
+        orchestrator=build_orchestrator(),
     )

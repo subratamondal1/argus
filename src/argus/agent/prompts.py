@@ -85,3 +85,26 @@ def related_questions_messages(question: str, answer: str) -> list[dict[str, str
         {"role": "system", "content": _RELATED_SYSTEM},
         {"role": "user", "content": f"Question: {question}\n\nAnswer:\n{answer[:2000]}"},
     ]
+
+
+_TRIAGE_SYSTEM: str = (
+    "You route a request to the right research strategy.\n"
+    "- 'direct': a simple, single-fact, conversational, or quick question that one agent can "
+    "answer in a few tool calls (a greeting, a definition, one lookup, a short follow-up).\n"
+    "- 'research': a multi-faceted, comparative, or open-ended request that genuinely benefits "
+    "from decomposing into independent sub-questions, researching them in parallel, and "
+    "synthesizing a cited report (for example: 'research the financial audit of company X', "
+    "'compare A and B in depth', 'analyze the current state of Y').\n"
+    "Default to 'direct' unless decomposition clearly helps. For 'research', return 3-5 "
+    "independent, specific sub-questions; for 'direct', return an empty list."
+)
+
+
+def triage_messages(question: str, max_sub_questions: int) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": _TRIAGE_SYSTEM},
+        {
+            "role": "user",
+            "content": f"Request: {question}\n\nFor research, give at most {max_sub_questions} sub-questions.",
+        },
+    ]

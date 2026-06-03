@@ -7,7 +7,7 @@ import orjson
 import pytest
 
 from argus.agent.events import AgentEvent
-from argus.agent.loop import AgentResult
+from argus.agent.orchestrator import ResearchReport
 from argus.web import server as web
 
 
@@ -23,30 +23,26 @@ async def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
-class _FakeLoop:
+class _FakeAdaptive:
     async def run(
-        self, question: str, *, on_event: Any = None, stream_tokens: bool = False
-    ) -> AgentResult:
+        self, question: str, *, on_event: Any = None, force_research: bool = False
+    ) -> ResearchReport:
         if on_event is not None:
+            await on_event(AgentEvent("triage", {"strategy": "direct", "reasoning": "simple"}))
             await on_event(AgentEvent("turn", {"n": 1, "tool_calls": 1}))
             await on_event(AgentEvent("tool", {"name": "rag_search", "query": question}))
-            if stream_tokens:
-                await on_event(AgentEvent("token", {"text": "the "}))
-                await on_event(AgentEvent("token", {"text": "answer"}))
-        return AgentResult(
-            answer="the grounded answer",
-            stop_reason="completed",
-            turns=1,
-            tokens=10,
-            cost_usd=0.0,
-            transcript=[],
+            await on_event(AgentEvent("token", {"text": "the "}))
+            await on_event(AgentEvent("token", {"text": "answer"}))
+            await on_event(AgentEvent("answer", {"text": "the grounded answer"}))
+        return ResearchReport(
+            question=question, answer="the grounded answer", findings=[], rounds=0
         )
 
 
 async def test_ask_streams_progress_then_answer_then_done(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(web, "build_loop", lambda: _FakeLoop())
+    monkeypatch.setattr(web, "build_adaptive", lambda: _FakeAdaptive())
 
     async def fake_related(question: str, answer: str) -> list[str]:
         return ["a follow-up question?"]
@@ -66,6 +62,7 @@ async def test_ask_streams_progress_then_answer_then_done(
                 events.append(orjson.loads(line[len("data:") :].strip()))
 
     kinds = [event["type"] for event in events]
+    assert "triage" in kinds
     assert "turn" in kinds
     assert "tool" in kinds
     assert "token" in kinds
