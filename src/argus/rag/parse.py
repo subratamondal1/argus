@@ -84,15 +84,24 @@ async def _parse_url(url: str) -> ParsedDoc:
 
 
 def _parse_pdf(path: Path) -> str:
-    # Prefer docling when the 'parse' extra is installed (richer layout/tables);
-    # otherwise fall back to pypdf so a PDF upload always works out of the box.
+    # pypdf is fast and zero-setup, so try it first. A PDF that yields no text is
+    # almost certainly scanned (images, no text layer) — fall back to docling,
+    # whose default pipeline OCRs. Running OCR only on the empty case keeps the
+    # heavy path off every text PDF.
+    text: str = _parse_pdf_pypdf(path)
+    if text.strip():
+        return text
+    return _parse_pdf_ocr(path)
+
+
+def _parse_pdf_ocr(path: Path) -> str:
     try:
         from docling.document_converter import DocumentConverter  # ty: ignore[unresolved-import]
     except ModuleNotFoundError:
-        return _parse_pdf_pypdf(path)
-    converter = DocumentConverter()
-    markdown: str = converter.convert(str(path)).document.export_to_markdown()
-    log.info("parse_docling", path=str(path), chars=len(markdown))
+        log.warning("pdf_no_text_no_ocr", path=str(path), hint="uv sync --extra parse for OCR")
+        return ""  # caller stores 0 chunks -> the UI surfaces the "no text — scanned?" hint
+    markdown: str = DocumentConverter().convert(str(path)).document.export_to_markdown()
+    log.info("parse_pdf_ocr", path=str(path), chars=len(markdown))
     return markdown
 
 
