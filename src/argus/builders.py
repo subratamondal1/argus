@@ -20,13 +20,13 @@ from argus.tools.web_fetch import register_web_fetch
 from argus.tools.web_search import register_web_search
 
 
-def build_registry() -> ToolRegistry:
+def build_registry(*, tenant: str = "public") -> ToolRegistry:
     registry = ToolRegistry()
     settings = get_settings()
     register_web_search(registry)
     register_web_fetch(registry)
     if settings.rag_enabled:
-        register_rag_search(registry)
+        register_rag_search(registry, tenant=tenant)
     if settings.exec_python_enabled:
         register_execute_python(registry)
     return registry
@@ -55,21 +55,23 @@ def build_llm(
     )
 
 
-def build_loop(ingested_sources: list[str] | None = None) -> AgentLoop:
+def build_loop(ingested_sources: list[str] | None = None, *, tenant: str = "public") -> AgentLoop:
     settings = get_settings()
     return AgentLoop(
-        registry=build_registry(),
+        registry=build_registry(tenant=tenant),
         llm=build_llm(settings),
         budget=build_budget(settings),
         system_prompt=direct_system_prompt(ingested_sources),
     )
 
 
-def build_orchestrator(ingested_sources: list[str] | None = None) -> Orchestrator:
+def build_orchestrator(
+    ingested_sources: list[str] | None = None, *, tenant: str = "public"
+) -> Orchestrator:
     settings = get_settings()
     return Orchestrator(
         llm=build_llm(settings),
-        registry=build_registry(),
+        registry=build_registry(tenant=tenant),
         searcher_budget=build_budget(settings),
         ingested_sources=list(ingested_sources or []),
         use_queue=settings.use_queue,
@@ -77,12 +79,14 @@ def build_orchestrator(ingested_sources: list[str] | None = None) -> Orchestrato
     )
 
 
-def build_adaptive(ingested_sources: list[str] | None = None) -> AdaptiveOrchestrator:
+def build_adaptive(
+    ingested_sources: list[str] | None = None, *, tenant: str = "public"
+) -> AdaptiveOrchestrator:
     settings = get_settings()
     sources: list[str] = list(ingested_sources or [])
     return AdaptiveOrchestrator(
         llm=build_llm(settings),
-        build_loop=lambda: build_loop(sources),
-        orchestrator=build_orchestrator(sources),
+        build_loop=lambda: build_loop(sources, tenant=tenant),
+        orchestrator=build_orchestrator(sources, tenant=tenant),
         ingested_sources=sources,
     )

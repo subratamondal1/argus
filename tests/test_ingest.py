@@ -33,6 +33,7 @@ async def test_context_prefix_lands_in_both_embedding_and_stored_text(
         texts: list[str],
         embeddings: list[list[float]],
         embedding_model: str,
+        tenant: str,
     ) -> None:
         stored["texts"] = texts
 

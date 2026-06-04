@@ -11,7 +11,7 @@ from argus.tools.registry import Permission, ToolCall, ToolRegistry
 
 
 def _registry(monkeypatch: pytest.MonkeyPatch, chunks: list[RetrievedChunk]) -> ToolRegistry:
-    async def fake_retrieve(query: str, *, top_k: int = 5, corpus: str = "default") -> list[Any]:
+    async def fake_retrieve(query: str, *, top_k: int = 5, corpus: str = "default", tenant: str = "public") -> list[Any]:
         return chunks[:top_k]
 
     monkeypatch.setattr(rag_search_mod, "retrieve", fake_retrieve)

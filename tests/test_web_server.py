@@ -91,7 +91,7 @@ async def test_ingest_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         source_uri = "README.md"
         chunks_written = 7
 
-    async def fake_ingest(source: str, *, corpus: str = "default") -> Any:
+    async def fake_ingest(source: str, *, corpus: str = "default", tenant: str = "public") -> Any:
         return _Result()
 
     monkeypatch.setattr(web, "ingest_source", fake_ingest)
@@ -107,7 +107,7 @@ async def test_ingest_upload_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         source_uri = "ignored"
         chunks_written = 3
 
-    async def fake_ingest(source: str, *, corpus: str = "default") -> Any:
+    async def fake_ingest(source: str, *, corpus: str = "default", tenant: str = "public") -> Any:
         return _Result()
 
     monkeypatch.setattr(web, "ingest_source", fake_ingest)

@@ -28,7 +28,7 @@ _HYBRID_SQL: str = """
 WITH dense AS (
     SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS rank
     FROM chunks
-    WHERE corpus = $3
+    WHERE corpus = $3 AND tenant = $5
     ORDER BY embedding <=> $1::vector
     LIMIT 50
 ),
@@ -37,7 +37,7 @@ lexical AS (
                ORDER BY ts_rank_cd(tsv, websearch_to_tsquery('english', $2)) DESC
            ) AS rank
     FROM chunks
-    WHERE corpus = $3
+    WHERE corpus = $3 AND tenant = $5
       AND tsv @@ websearch_to_tsquery('english', $2)
     LIMIT 50
 ),
@@ -62,7 +62,9 @@ class RetrievedChunk(BaseModel):
     score: float = Field(description="Reciprocal-rank-fusion score (higher is better).")
 
 
-async def retrieve(query: str, *, top_k: int = 5, corpus: str = "default") -> list[RetrievedChunk]:
+async def retrieve(
+    query: str, *, top_k: int = 5, corpus: str = "default", tenant: str = "public"
+) -> list[RetrievedChunk]:
     settings = get_settings()
     vectors: list[list[float]] = await embed_texts([query], task=EmbedTask.QUERY)
     query_vector: list[float] = vectors[0]
@@ -72,7 +74,9 @@ async def retrieve(query: str, *, top_k: int = 5, corpus: str = "default") -> li
     async with pool.acquire() as connection, connection.transaction():
         await connection.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
         await connection.execute(f"SET LOCAL hnsw.ef_search = {_EF_SEARCH}")
-        rows: list[Any] = await connection.fetch(_HYBRID_SQL, query_vector, query, corpus, fetch_k)
+        rows: list[Any] = await connection.fetch(
+            _HYBRID_SQL, query_vector, query, corpus, fetch_k, tenant
+        )
 
     chunks: list[RetrievedChunk] = [
         RetrievedChunk(

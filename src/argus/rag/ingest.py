@@ -21,11 +21,14 @@ from argus.rag.parse import parse_source
 
 log = get_logger(__name__)
 
-_DELETE: str = "DELETE FROM chunks WHERE source_uri = $1 AND corpus = $2 AND corpus_version = $3"
+_DELETE: str = (
+    "DELETE FROM chunks "
+    "WHERE source_uri = $1 AND corpus = $2 AND corpus_version = $3 AND tenant = $4"
+)
 _INSERT: str = (
     "INSERT INTO chunks "
-    "(corpus, corpus_version, source_uri, content, embedding, tsv, embedding_model) "
-    "VALUES ($1, $2, $3, $4, $5, to_tsvector('english', $4), $6)"
+    "(corpus, corpus_version, source_uri, content, embedding, tsv, embedding_model, tenant) "
+    "VALUES ($1, $2, $3, $4, $5, to_tsvector('english', $4), $6, $7)"
 )
 
 
@@ -36,7 +39,7 @@ class IngestResult:
 
 
 async def ingest_source(
-    source: str, *, corpus: str = "default", corpus_version: str = "v1"
+    source: str, *, corpus: str = "default", corpus_version: str = "v1", tenant: str = "public"
 ) -> IngestResult:
     settings = get_settings()
     parsed = await parse_source(source)
@@ -55,9 +58,15 @@ async def ingest_source(
 
     embeddings: list[list[float]] = await embed_texts(contextualized, task=EmbedTask.DOCUMENT)
     await _store(
-        parsed.uri, corpus, corpus_version, contextualized, embeddings, settings.embedding_model
+        parsed.uri,
+        corpus,
+        corpus_version,
+        contextualized,
+        embeddings,
+        settings.embedding_model,
+        tenant,
     )
-    log.info("ingest", source=parsed.uri, chunks=len(chunks))
+    log.info("ingest", source=parsed.uri, chunks=len(chunks), tenant=tenant)
     return IngestResult(source_uri=parsed.uri, chunks_written=len(chunks))
 
 
@@ -68,14 +77,15 @@ async def _store(
     texts: list[str],
     embeddings: list[list[float]],
     embedding_model: str,
+    tenant: str,
 ) -> None:
     pool = await get_pool()
     async with pool.acquire() as connection, connection.transaction():
-        await connection.execute(_DELETE, source_uri, corpus, corpus_version)
+        await connection.execute(_DELETE, source_uri, corpus, corpus_version, tenant)
         await connection.executemany(
             _INSERT,
             [
-                (corpus, corpus_version, source_uri, text, embedding, embedding_model)
+                (corpus, corpus_version, source_uri, text, embedding, embedding_model, tenant)
                 for text, embedding in zip(texts, embeddings, strict=True)
             ],
         )

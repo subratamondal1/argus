@@ -21,7 +21,9 @@ class RagSearchResult(BaseModel):
     chunks: list[RetrievedChunk] = Field(description="Retrieved chunks in fused-rank order.")
 
 
-def register_rag_search(registry: ToolRegistry, *, corpus: str = "default") -> None:
+def register_rag_search(
+    registry: ToolRegistry, *, corpus: str = "default", tenant: str = "public"
+) -> None:
     @registry.tool(permission=Permission.ALLOW)
     async def rag_search(args: RagSearchArgs) -> RagSearchResult:
         """Search the documents ingested into Argus's local corpus.
@@ -30,6 +32,8 @@ def register_rag_search(registry: ToolRegistry, *, corpus: str = "default") -> N
         web_search for current events and live facts; you may call both and
         reconcile. Each result carries its source_uri so you can cite it.
         """
-        chunks: list[RetrievedChunk] = await retrieve(args.query, top_k=args.top_k, corpus=corpus)
+        chunks: list[RetrievedChunk] = await retrieve(
+            args.query, top_k=args.top_k, corpus=corpus, tenant=tenant
+        )
         log.info("rag_search", query=args.query, n_chunks=len(chunks))
         return RagSearchResult(query=args.query, chunks=chunks)

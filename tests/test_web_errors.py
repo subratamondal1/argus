@@ -43,7 +43,7 @@ async def test_ready_is_503_when_the_database_is_unreachable(
 
 
 async def test_ingest_failure_is_a_coded_422(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def boom(source: str, *, corpus: str = "default") -> object:
+    async def boom(source: str, *, corpus: str = "default", tenant: str = "public") -> object:
         raise ValueError("no such file")
 
     monkeypatch.setattr(web, "ingest_source", boom)

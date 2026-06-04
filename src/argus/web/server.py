@@ -20,7 +20,7 @@ from typing import Annotated
 
 import orjson
 import structlog
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Header, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -136,11 +136,14 @@ async def ready() -> dict[str, str]:
 
 
 @app.post("/api/ask")
-async def ask(request: AskRequest) -> EventSourceResponse:
-    return EventSourceResponse(_ask_events(request))
+async def ask(
+    request: AskRequest,
+    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+) -> EventSourceResponse:
+    return EventSourceResponse(_ask_events(request, tenant))
 
 
-async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
+async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[str, str]]:
     # Bind a run id under the request id so the planner and every fanned-out
     # searcher coroutine (which inherit this context) thread back to one run.
     run_id: str = uuid.uuid4().hex
@@ -153,7 +156,7 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
 
     async def run() -> None:
         try:
-            report = await build_adaptive(request.ingested).run(
+            report = await build_adaptive(request.ingested, tenant=tenant).run(
                 request.question, on_event=sink, force_research=request.deep
             )
             related = await _related_questions(request.question, report.answer)
@@ -179,17 +182,20 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
 
 
 @app.post("/api/ingest")
-async def ingest(request: IngestRequest) -> IngestResponse:
-    result = await _ingest(request.source, corpus=request.corpus)
+async def ingest(
+    request: IngestRequest,
+    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+) -> IngestResponse:
+    result = await _ingest(request.source, corpus=request.corpus, tenant=tenant)
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
 
 
-async def _ingest(source: str, *, corpus: str) -> IngestResult:
+async def _ingest(source: str, *, corpus: str, tenant: str = "public") -> IngestResult:
     # Surface ingest/parse failures as a clean, coded 422 (which carries CORS
     # headers and a readable message) rather than letting them bubble to a bare
     # 500 the browser reports as "can't reach the backend".
     try:
-        result = await ingest_source(source, corpus=corpus)
+        result = await ingest_source(source, corpus=corpus, tenant=tenant)
     except Exception as error:
         log.warning("api_ingest_failed", source=source, error=str(error))
         raise ApiError(
@@ -210,10 +216,13 @@ def _persist_upload(name: str, data: bytes) -> str:
 
 
 @app.post("/api/ingest/upload")
-async def ingest_upload(file: Annotated[UploadFile, File()]) -> IngestResponse:
+async def ingest_upload(
+    file: Annotated[UploadFile, File()],
+    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+) -> IngestResponse:
     name: str = Path(file.filename or "upload").name
     data: bytes = await file.read()
     path: str = await asyncio.to_thread(_persist_upload, name, data)
-    result = await _ingest(path, corpus="default")
+    result = await _ingest(path, corpus="default", tenant=tenant)
     log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
     return IngestResponse(source_uri=name, chunks_written=result.chunks_written)
