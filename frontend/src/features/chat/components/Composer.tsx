@@ -25,7 +25,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/lib/cn";
 
-import { type IngestedSource, useIngest } from "../hooks/useIngest";
+import { type IngestedSource, MAX_SOURCES, useIngest } from "../hooks/useIngest";
 import { TextShimmer } from "./TextShimmer";
 
 interface Props {
@@ -44,7 +44,18 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const [preview, setPreview] = useState<IngestedSource | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { ingestUrl, uploadFile, removeSource, clearError, status, error, sources } = useIngest();
+  const {
+    ingestUrl,
+    uploadFile,
+    removeSource,
+    cancel,
+    clearError,
+    status,
+    pending,
+    atLimit,
+    error,
+    sources,
+  } = useIngest();
 
   // The preview overlay is position:fixed, but the composer lives inside a
   // backdrop-blur container — and backdrop-filter (like transform) makes that
@@ -115,24 +126,41 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         </div>
       )}
 
-      {(sources.length > 0 || error !== null) && (
-        <div className="mb-2 flex flex-wrap gap-2">
+      {(sources.length > 0 || error !== null || pending !== null) && (
+        // Single row: chips keep their size (shrink-0) and the strip scrolls
+        // horizontally once they overflow, rather than wrapping and growing taller.
+        <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+          {pending !== null && (
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-md border border-foreground/25 bg-foreground/[0.06] py-1.5 pr-1.5 pl-3 text-[13px] text-foreground/70">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-foreground/55" />
+              <span className="max-w-[200px] truncate">Reading {pending}…</span>
+              <button
+                type="button"
+                onClick={cancel}
+                aria-label="Cancel upload"
+                title="Cancel"
+                className="ml-0.5 shrink-0 rounded p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
           {sources.map((source) => {
             const empty = source.chunks === 0;
             return (
               <span
                 key={source.label}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border py-1 pr-1 pl-2.5 text-xs",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-md border py-1.5 pr-1.5 pl-3 text-[13px]",
                   empty
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                     : "border-accent/30 bg-accent/10 text-foreground/80",
                 )}
               >
                 {empty ? (
-                  <TriangleAlert className="h-3 w-3 shrink-0 text-amber-400" />
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                 ) : (
-                  <Check className="h-3 w-3 shrink-0 text-accent" />
+                  <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
                 )}
                 <button
                   type="button"
@@ -140,22 +168,22 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                   disabled={source.previewUrl === null}
                   title={source.previewUrl ? "Preview" : undefined}
                   className={cn(
-                    "max-w-[220px] truncate",
+                    "max-w-[260px] truncate",
                     source.previewUrl && "inline-flex items-center gap-1 hover:underline",
                   )}
                 >
                   <span className="truncate">
                     {source.label} · {empty ? "no text — scanned?" : `${source.chunks} chunks`}
                   </span>
-                  {source.previewUrl && <Eye className="h-3 w-3 shrink-0 opacity-60" />}
+                  {source.previewUrl && <Eye className="h-3.5 w-3.5 shrink-0 opacity-60" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => removeSource(source.label)}
                   aria-label={`Remove ${source.label}`}
-                  className="ml-0.5 shrink-0 rounded-full p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
+                  className="ml-0.5 shrink-0 rounded p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </span>
             );
@@ -164,11 +192,11 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             <button
               type="button"
               onClick={clearError}
-              className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-500 transition hover:bg-red-500/20"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] text-red-500 transition hover:bg-red-500/20"
               title="Dismiss"
             >
               {error}
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -226,10 +254,11 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
+              disabled={status === "loading"}
               aria-label="Add a source"
               aria-expanded={menuOpen}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full border transition",
+                "flex h-8 w-8 items-center justify-center rounded-full border transition disabled:cursor-default",
                 menuOpen
                   ? "border-accent/50 bg-accent/10 text-accent"
                   : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground/90",
@@ -250,10 +279,17 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                   className="fixed inset-0 z-30 cursor-default"
                   onClick={() => setMenuOpen(false)}
                 />
-                <div className="absolute bottom-full left-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-foreground/20 bg-surface shadow-[0_12px_40px_-12px_rgba(0,0,0,0.8)]">
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-52 overflow-hidden rounded-xl border border-foreground/20 bg-surface shadow-[0_12px_40px_-12px_rgba(0,0,0,0.8)]">
+                  <div className="flex items-center justify-between border-b border-foreground/10 px-3.5 py-2 font-mono text-[10px] uppercase tracking-widest text-foreground/45">
+                    <span>Documents</span>
+                    <span className={cn(atLimit && "text-amber-400")}>
+                      {sources.length} / {MAX_SOURCES}
+                    </span>
+                  </div>
                   <MenuItem
                     icon={<Paperclip className="h-4 w-4" />}
                     label="Attach a file"
+                    disabled={atLimit}
                     onClick={() => {
                       setMenuOpen(false);
                       fileRef.current?.click();
@@ -262,11 +298,17 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                   <MenuItem
                     icon={<Link2 className="h-4 w-4" />}
                     label="Ingest a URL"
+                    disabled={atLimit}
                     onClick={() => {
                       setMenuOpen(false);
                       setShowUrl(true);
                     }}
                   />
+                  {atLimit && (
+                    <p className="border-t border-foreground/10 px-3.5 py-2 text-[11px] leading-snug text-amber-400/90">
+                      Limit reached — remove a document to add another.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -364,16 +406,19 @@ function MenuItem({
   icon,
   label,
   onClick,
+  disabled = false,
 }: {
   icon: ReactNode;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm text-foreground/80 transition hover:bg-foreground/[0.06] hover:text-foreground"
+      disabled={disabled}
+      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm text-foreground/80 transition hover:bg-foreground/[0.06] hover:text-foreground disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80"
     >
       <span className="text-foreground/55">{icon}</span>
       {label}
