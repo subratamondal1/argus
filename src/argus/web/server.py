@@ -12,12 +12,14 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 import orjson
+import structlog
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -30,6 +32,7 @@ from argus.config import get_settings
 from argus.db import close_pool
 from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import ingest_source
+from argus.web.middleware import RequestIdMiddleware
 
 log = get_logger(__name__)
 
@@ -69,11 +72,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Argus", version="0.0.1", lifespan=_lifespan)
+# Order matters: add request-id first so it sits INSIDE CORS (the last add is the
+# outermost), keeping CORS headers on every response including errors.
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-Id"],
 )
 
 
@@ -111,6 +118,11 @@ async def ask(request: AskRequest) -> EventSourceResponse:
 
 
 async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
+    # Bind a run id under the request id so the planner and every fanned-out
+    # searcher coroutine (which inherit this context) thread back to one run.
+    run_id: str = uuid.uuid4().hex
+    structlog.contextvars.bind_contextvars(run_id=run_id)
+    log.info("ask", deep=request.deep, ingested=len(request.ingested))
     queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
 
     async def sink(event: AgentEvent) -> None:
@@ -125,6 +137,7 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
             if related:
                 await sink(AgentEvent("related", {"questions": related}))
         except Exception as error:
+            log.warning("ask_failed", error=str(error))
             await sink(AgentEvent("error", {"message": f"{type(error).__name__}: {error}"}))
         finally:
             await queue.put(None)
@@ -139,6 +152,7 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
         yield {"data": orjson.dumps({"type": "done"}).decode()}
     finally:
         task.cancel()
+        structlog.contextvars.unbind_contextvars("run_id")
 
 
 @app.post("/api/ingest")

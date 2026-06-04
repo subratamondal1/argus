@@ -23,6 +23,19 @@ async def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+async def test_request_id_minted_on_response() -> None:
+    async with _client() as client:
+        response = await client.get("/api/health")
+    minted = response.headers.get("x-request-id")
+    assert minted is not None and len(minted) >= 8
+
+
+async def test_request_id_echoes_inbound() -> None:
+    async with _client() as client:
+        response = await client.get("/api/health", headers={"X-Request-Id": "trace-abc-123"})
+    assert response.headers.get("x-request-id") == "trace-abc-123"
+
+
 class _FakeAdaptive:
     async def run(
         self, question: str, *, on_event: Any = None, force_research: bool = False
