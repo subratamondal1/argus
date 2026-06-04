@@ -52,6 +52,17 @@ def _result_to_text(result: ToolResult) -> str:
     return orjson.dumps(content, default=str).decode()
 
 
+def _wrap_untrusted(result: ToolResult) -> str:
+    # Frame successful tool output as untrusted external data so embedded
+    # instructions in a fetched page / ingested doc aren't treated as orders
+    # (pairs with the SECURITY clause in the system prompt). Error results are
+    # our own text, so they pass through unwrapped.
+    text: str = _result_to_text(result)
+    if not result.ok:
+        return text
+    return f"<untrusted_tool_output>\n{text}\n</untrusted_tool_output>"
+
+
 def _parse_arguments(raw: str) -> dict[str, Any]:
     if not raw:
         return {}
@@ -176,7 +187,7 @@ class AgentLoop:
                         {
                             "role": "tool",
                             "tool_call_id": call.id,
-                            "content": _result_to_text(result),
+                            "content": _wrap_untrusted(result),
                         }
                     )
                     if seen_calls[_call_signature(call.name, parsed)] >= _CYCLE_LIMIT:
