@@ -17,6 +17,7 @@ import trafilatura
 
 from argus.config import get_settings
 from argus.logging import get_logger
+from argus.net import assert_safe_url
 
 log = get_logger(__name__)
 
@@ -69,6 +70,7 @@ def _parse_file(source: str) -> ParsedDoc:
 
 async def _parse_url(url: str) -> ParsedDoc:
     settings = get_settings()
+    await asyncio.to_thread(assert_safe_url, url)
     async with httpx.AsyncClient(
         timeout=settings.request_timeout_s,
         follow_redirects=True,

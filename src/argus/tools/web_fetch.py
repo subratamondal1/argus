@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import trafilatura
 from pydantic import BaseModel, Field
 
 from argus.config import get_settings
 from argus.logging import get_logger
+from argus.net import assert_safe_url
 from argus.tools.registry import Permission, ToolRegistry
 
 log = get_logger(__name__)
@@ -37,6 +40,7 @@ def register_web_fetch(registry: ToolRegistry) -> None:
         authoritative result instead of trusting the short search snippet.
         """
         settings = get_settings()
+        await asyncio.to_thread(assert_safe_url, args.url)
         async with httpx.AsyncClient(
             timeout=settings.request_timeout_s,
             follow_redirects=True,
