@@ -48,12 +48,20 @@ function uuid(): string {
 
 export const useChatStore = create<ChatState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       conversations: [],
       activeId: null,
       hydrated: false,
 
+      // Reuse an existing empty conversation instead of stacking up duplicate
+      // "New chat" entries — clicking New chat with nothing typed just keeps you
+      // on the one empty chat. A conversation gets a real title on its first turn.
       newConversation: () => {
+        const empty = get().conversations.find((conversation) => conversation.turns.length === 0);
+        if (empty !== undefined) {
+          set({ activeId: empty.id });
+          return empty.id;
+        }
         const id = uuid();
         set((state) => ({
           conversations: [
