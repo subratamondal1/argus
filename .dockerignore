@@ -1,0 +1,51 @@
+# Keep the build context tiny and the image clean. Only pyproject.toml, uv.lock,
+# src/, and README.md (the build-backend reads it) are needed by the Dockerfile.
+
+# Local virtualenv — never ship the host venv; the builder makes a fresh one.
+.venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Tool + test caches
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+
+# Secrets — NEVER bake env files into an image layer.
+.env
+.env.*
+!.env.example
+
+# Git + CI metadata
+.git/
+.github/
+.gitignore
+.pre-commit-config.yaml
+
+# Frontend has its own build/deploy path; not part of the Python image.
+frontend/
+
+# Local-only backing services + scripts not needed inside the app image.
+docker-compose.yml
+searxng/
+scripts/
+
+# Docs, evals, tests — not shipped in the runtime image.
+docs/
+eval/
+tests/
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+
+# Local data / traces / logs
+*.log
+/data/
+/traces/
+
+# The Dockerfile itself and this ignore file
+Dockerfile
+.dockerignore
