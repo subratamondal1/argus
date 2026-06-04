@@ -42,6 +42,7 @@ class LLMClient:
         timeout_s: float,
         temperature: float | None = None,
         num_retries: int = 2,
+        fallbacks: list[str] | None = None,
     ) -> None:
         self._model: str = model
         self._timeout: float = timeout_s
@@ -49,6 +50,18 @@ class LLMClient:
         # litellm retries transient failures (timeouts, rate limits, 5xx) with
         # backoff, so a one-off API hiccup never surfaces to the user.
         self._num_retries: int = num_retries
+        # If the primary model still fails after its retries, litellm tries each
+        # fallback model in order — provider/model degradation never hard-fails.
+        self._fallbacks: list[str] | None = fallbacks or None
+
+    def _reliability_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "timeout": self._timeout,
+            "num_retries": self._num_retries,
+        }
+        if self._fallbacks is not None:
+            kwargs["fallbacks"] = self._fallbacks
+        return kwargs
 
     def _sampling_kwargs(self) -> dict[str, Any]:
         return {} if self._temperature is None else {"temperature": self._temperature}
@@ -65,8 +78,7 @@ class LLMClient:
                 model=self._model,
                 messages=messages,
                 tools=tools,
-                timeout=self._timeout,
-                num_retries=self._num_retries,
+                **self._reliability_kwargs(),
                 **self._sampling_kwargs(),
             )
         else:
@@ -84,8 +96,7 @@ class LLMClient:
             model=self._model,
             messages=messages,
             tools=tools,
-            timeout=self._timeout,
-            num_retries=self._num_retries,
+            **self._reliability_kwargs(),
             stream=True,
             stream_options={"include_usage": True},
             **self._sampling_kwargs(),
@@ -131,8 +142,7 @@ class LLMClient:
             model=self._model,
             messages=messages,
             response_format=schema,
-            timeout=self._timeout,
-            num_retries=self._num_retries,
+            **self._reliability_kwargs(),
             **self._sampling_kwargs(),
         )
         content: str = response.choices[0].message.content or "{}"

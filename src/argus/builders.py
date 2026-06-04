@@ -37,11 +37,22 @@ def build_budget(settings: Settings) -> Budget:
     )
 
 
+def build_llm(settings: Settings, *, model: str | None = None) -> LLMClient:
+    # One place wires retries + the fallback chain, so every LLM call inherits the
+    # same reliability policy.
+    return LLMClient(
+        model=model or settings.model,
+        timeout_s=settings.request_timeout_s,
+        num_retries=settings.num_retries,
+        fallbacks=settings.fallback_models,
+    )
+
+
 def build_loop(ingested_sources: list[str] | None = None) -> AgentLoop:
     settings = get_settings()
     return AgentLoop(
         registry=build_registry(),
-        llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
+        llm=build_llm(settings),
         budget=build_budget(settings),
         system_prompt=direct_system_prompt(ingested_sources),
     )
@@ -50,7 +61,7 @@ def build_loop(ingested_sources: list[str] | None = None) -> AgentLoop:
 def build_orchestrator(ingested_sources: list[str] | None = None) -> Orchestrator:
     settings = get_settings()
     return Orchestrator(
-        llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
+        llm=build_llm(settings),
         registry=build_registry(),
         searcher_budget=build_budget(settings),
         ingested_sources=list(ingested_sources or []),
@@ -61,7 +72,7 @@ def build_adaptive(ingested_sources: list[str] | None = None) -> AdaptiveOrchest
     settings = get_settings()
     sources: list[str] = list(ingested_sources or [])
     return AdaptiveOrchestrator(
-        llm=LLMClient(model=settings.model, timeout_s=settings.request_timeout_s),
+        llm=build_llm(settings),
         build_loop=lambda: build_loop(sources),
         orchestrator=build_orchestrator(sources),
         ingested_sources=sources,

@@ -20,6 +20,17 @@ class Settings(BaseSettings):
         default="anthropic/claude-sonnet-4-6",
         description="LiteLLM model id used by the agent loop.",
     )
+    fallback_models: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Models LiteLLM falls back to, in order, if the primary model errors after its "
+            "retries. Set ARGUS_FALLBACK_MODELS as a JSON list, e.g. "
+            '["anthropic/claude-haiku-4-5","openai/gpt-5.4-mini"].'
+        ),
+    )
+    num_retries: int = Field(
+        default=2, ge=0, description="LiteLLM retries on transient failures before falling back."
+    )
     request_timeout_s: float = Field(default=30.0, gt=0)
     searxng_host: str = Field(default="localhost", description="Host where SearXNG is reachable.")
     searxng_port: int = Field(
