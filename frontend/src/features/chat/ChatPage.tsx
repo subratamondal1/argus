@@ -70,7 +70,11 @@ export function ChatPage() {
           </button>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        {/* overflow-x-hidden: citation popovers are laid out (visibility:hidden,
+            not display:none) and extend past the prose; on mobile that would give
+            the answer a horizontal scrollbar. Clip x here at full width so desktop
+            popovers still live in the side margins. */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto max-w-3xl px-4">
             {turns.length === 0 ? (
               <Hero onPick={(question) => ask(question, false)} />
