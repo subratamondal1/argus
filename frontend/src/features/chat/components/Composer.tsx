@@ -131,68 +131,81 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         // horizontally once they overflow, rather than wrapping and growing taller.
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
           {pending !== null && (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-none border border-foreground/25 bg-foreground/[0.06] py-1.5 pr-1.5 pl-3 text-[13px] text-foreground/70">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-foreground/55" />
-              <span className="max-w-[200px] truncate">Reading {pending}…</span>
-              <button
-                type="button"
-                onClick={cancel}
-                aria-label="Cancel upload"
-                title="Cancel"
-                className="ml-0.5 shrink-0 rounded p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </span>
+            <div className="flex h-24 w-24 shrink-0 flex-col rounded-none border border-foreground/25 bg-foreground/[0.06] p-2 text-foreground/70">
+              <div className="flex items-start justify-between">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-foreground/55" />
+                <button
+                  type="button"
+                  onClick={cancel}
+                  aria-label="Cancel upload"
+                  title="Cancel"
+                  className="-mt-1 -mr-1 shrink-0 rounded-none p-0.5 text-foreground/45 transition hover:bg-foreground/15 hover:text-foreground/90"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-1 flex flex-1 flex-col justify-end">
+                <span className="line-clamp-2 break-all text-[11px] leading-tight">{pending}</span>
+                <span className="mt-0.5 text-[10px] text-foreground/45">Reading…</span>
+              </div>
+            </div>
           )}
           {sources.map((source) => {
             const empty = source.chunks === 0;
             return (
-              <span
+              // Fixed square tile (h == w); the strip scrolls horizontally once
+              // tiles overflow rather than wrapping and growing taller.
+              <div
                 key={source.label}
+                title={source.label}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-none border py-1.5 pr-1.5 pl-3 text-[13px]",
+                  "flex h-24 w-24 shrink-0 flex-col rounded-none border p-2",
                   empty
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                     : "border-accent/30 bg-accent/10 text-foreground/80",
                 )}
               >
-                {empty ? (
-                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                ) : (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
-                )}
+                <div className="flex items-start justify-between">
+                  {empty ? (
+                    <TriangleAlert className="h-4 w-4 shrink-0 text-amber-400" />
+                  ) : (
+                    <Check className="h-4 w-4 shrink-0 text-accent" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeSource(source.label)}
+                    aria-label={`Remove ${source.label}`}
+                    className="-mt-1 -mr-1 shrink-0 rounded-none p-0.5 text-foreground/45 transition hover:bg-foreground/15 hover:text-foreground/90"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => source.previewUrl && setPreview(source)}
                   disabled={source.previewUrl === null}
                   title={source.previewUrl ? "Preview" : undefined}
                   className={cn(
-                    "max-w-[260px] truncate",
-                    source.previewUrl && "inline-flex items-center gap-1 hover:underline",
+                    "mt-1 flex flex-1 flex-col justify-end text-left",
+                    source.previewUrl && "cursor-pointer",
                   )}
                 >
-                  <span className="truncate">
-                    {source.label} · {empty ? "no text — scanned?" : `${source.chunks} chunks`}
+                  <span className="line-clamp-2 break-all text-[11px] leading-tight">
+                    {source.label}
                   </span>
-                  {source.previewUrl && <Eye className="h-3.5 w-3.5 shrink-0 opacity-60" />}
+                  <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-foreground/50">
+                    {source.previewUrl && <Eye className="h-3 w-3 shrink-0" />}
+                    {empty ? "no text" : `${source.chunks} chunks`}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => removeSource(source.label)}
-                  aria-label={`Remove ${source.label}`}
-                  className="ml-0.5 shrink-0 rounded p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
+              </div>
             );
           })}
           {error !== null && (
             <button
               type="button"
               onClick={clearError}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-none border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] text-red-500 transition hover:bg-red-500/20"
+              className="inline-flex shrink-0 items-center gap-1.5 self-center rounded-none border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] text-red-500 transition hover:bg-red-500/20"
               title="Dismiss"
             >
               {error}
