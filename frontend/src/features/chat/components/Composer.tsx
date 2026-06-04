@@ -262,7 +262,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             className={cn(
               "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
               deep
-                ? "border-accent/70 bg-accent/15"
+                ? "border-accent/70 bg-foreground/[0.09]"
                 : "border-foreground/25 bg-foreground/[0.04] text-foreground/70 hover:border-foreground/45 hover:text-foreground/90",
             )}
           >
