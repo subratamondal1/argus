@@ -19,6 +19,7 @@ const EXAMPLES = [
 export function ChatPage() {
   const { ask, cancel } = useAsk();
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const conversation = useChatStore(
     (state) => state.conversations.find((item) => item.id === state.activeId) ?? null,
   );
@@ -42,7 +43,12 @@ export function ChatPage() {
 
   return (
     <div className="flex h-dvh bg-background text-foreground">
-      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <Sidebar
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((value) => !value)}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-2 border-b border-foreground/10 px-2 py-2 md:hidden">
           <button
