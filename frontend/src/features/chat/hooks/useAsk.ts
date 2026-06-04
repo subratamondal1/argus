@@ -7,6 +7,7 @@ import { logger } from "@/shared/lib/logger";
 
 import { authHeader } from "../../auth/store";
 import { useChatStore } from "../store";
+import { saveConversation } from "../sync";
 import type { AgentEvent } from "../types";
 
 const RESETS_ANSWER = new Set(["plan", "tool"]);
@@ -147,9 +148,11 @@ export function useAsk(): Ask {
         }
       }
       patch(conversationId, turnId, { status: "done", refining: false });
+      saveConversation(conversationId);
     } catch (caught) {
       if (caught instanceof Error && caught.name === "AbortError") {
         patch(conversationId, turnId, { status: "done", refining: false });
+        saveConversation(conversationId);
         return;
       }
       logger.error("ask failed", caught);

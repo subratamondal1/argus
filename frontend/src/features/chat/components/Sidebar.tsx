@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/cn";
 
 import { Profile } from "../../auth/Profile";
 import { useChatStore } from "../store";
+import { openConversation, removeConversation } from "../sync";
 
 // Static rail on md+; a slide-in drawer with backdrop on small screens. On
 // desktop it collapses to a thin icon rail (expand + new chat) and expands back
@@ -27,8 +28,6 @@ export function Sidebar({
   const activeId = useChatStore((state) => state.activeId);
   const hydrated = useChatStore((state) => state.hydrated);
   const newConversation = useChatStore((state) => state.newConversation);
-  const setActive = useChatStore((state) => state.setActive);
-  const deleteConversation = useChatStore((state) => state.deleteConversation);
 
   return (
     <>
@@ -114,7 +113,7 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => {
-                      setActive(conversation.id);
+                      void openConversation(conversation.id);
                       onClose();
                     }}
                     className="flex-1 truncate py-2 text-left text-sm text-foreground/75"
@@ -124,7 +123,7 @@ export function Sidebar({
                   </button>
                   <button
                     type="button"
-                    onClick={() => deleteConversation(conversation.id)}
+                    onClick={() => void removeConversation(conversation.id)}
                     className="rounded p-1 opacity-0 transition group-hover:opacity-100"
                     aria-label="Delete chat"
                   >

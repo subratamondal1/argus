@@ -9,6 +9,7 @@ import { Turn } from "./components/Turn";
 import { useAsk } from "./hooks/useAsk";
 import { useStickToBottom } from "./hooks/useStickToBottom";
 import { useChatStore } from "./store";
+import { loadConversations } from "./sync";
 
 const EXAMPLES = [
   "What's the latest Claude model and what changed?",
@@ -28,6 +29,12 @@ export function ChatPage() {
   const streaming = turns.some((turn) => turn.status === "streaming");
   const scrollRef = useStickToBottom(turns.length);
   const [viewport, setViewport] = useState(0);
+
+  // If a token was restored from a previous session, pull that account's history
+  // from the server (no-op when signed out — anonymous history stays local).
+  useEffect(() => {
+    void loadConversations();
+  }, []);
 
   // Track the scroll viewport height so the active turn can be cushioned to fill
   // it — that is what lets a freshly-sent question glide to the top of the view.

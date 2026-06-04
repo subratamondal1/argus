@@ -15,8 +15,9 @@ import tempfile
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import orjson
 import structlog
@@ -30,6 +31,12 @@ from argus.agent.prompts import related_questions_messages
 from argus.auth import AuthError, AuthResult, decode_token, login, signup, tenant_from_authorization
 from argus.builders import build_adaptive, build_llm
 from argus.config import get_settings
+from argus.conversations import (
+    delete_conversation,
+    get_conversation,
+    list_conversations,
+    upsert_conversation,
+)
 from argus.db import close_pool, get_pool
 from argus.logging import configure_logging, get_logger
 from argus.observability import setup_langfuse, setup_tracing
@@ -137,6 +144,30 @@ def _auth_response(result: AuthResult) -> AuthResponse:
     )
 
 
+class ConversationSummaryOut(BaseModel):
+    id: str
+    title: str
+    updated_at: int  # epoch milliseconds, to match the UI's createdAt/Date.now()
+
+
+class ConversationsOut(BaseModel):
+    conversations: list[ConversationSummaryOut]
+
+
+class ConversationOut(ConversationSummaryOut):
+    # Turns are owned by the UI; the server persists and returns them verbatim.
+    turns: list[dict[str, Any]]
+
+
+class ConversationUpsert(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    turns: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _epoch_ms(value: datetime) -> int:
+    return int(value.timestamp() * 1000)
+
+
 def _resolve_tenant(authorization: str | None) -> str:
     # The verified JWT is the ONLY trusted tenant source. No Authorization header ->
     # the shared "public" corpus; a present-but-invalid token fails CLOSED (401)
@@ -146,6 +177,15 @@ def _resolve_tenant(authorization: str | None) -> str:
     tenant: str | None = tenant_from_authorization(authorization)
     if tenant is None:
         raise ApiError(code="invalid_token", status=401, message="invalid or expired session")
+    return tenant
+
+
+def _require_tenant(authorization: str | None) -> str:
+    # Server-side history belongs to an account: a real (non-"public") tenant.
+    # Anonymous callers keep their history in the browser and are rejected here.
+    tenant: str = _resolve_tenant(authorization)
+    if tenant == "public":
+        raise ApiError(code="unauthenticated", status=401, message="sign in to access history")
     return tenant
 
 
@@ -178,6 +218,63 @@ async def auth_me(authorization: Annotated[str | None, Header()] = None) -> User
     if not (isinstance(sub, str) and isinstance(email, str) and isinstance(tenant, str)):
         raise ApiError(code="unauthenticated", status=401, message="malformed session")
     return UserOut(id=sub, email=email, tenant=tenant)
+
+
+@app.get("/api/conversations")
+async def conversations_list(
+    authorization: Annotated[str | None, Header()] = None,
+) -> ConversationsOut:
+    tenant: str = _require_tenant(authorization)
+    summaries = await list_conversations(tenant)
+    return ConversationsOut(
+        conversations=[
+            ConversationSummaryOut(
+                id=item.id, title=item.title, updated_at=_epoch_ms(item.updated_at)
+            )
+            for item in summaries
+        ]
+    )
+
+
+@app.get("/api/conversations/{conversation_id}")
+async def conversations_get(
+    conversation_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ConversationOut:
+    tenant: str = _require_tenant(authorization)
+    conversation = await get_conversation(tenant, conversation_id)
+    if conversation is None:
+        raise ApiError(code="not_found", status=404, message="no such conversation")
+    return ConversationOut(
+        id=conversation.id,
+        title=conversation.title,
+        updated_at=_epoch_ms(conversation.updated_at),
+        turns=conversation.turns,
+    )
+
+
+@app.put("/api/conversations/{conversation_id}")
+async def conversations_put(
+    conversation_id: str,
+    request: ConversationUpsert,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ConversationSummaryOut:
+    tenant: str = _require_tenant(authorization)
+    updated_at = await upsert_conversation(tenant, conversation_id, request.title, request.turns)
+    if updated_at is None:
+        raise ApiError(code="invalid_id", status=422, message="malformed conversation id")
+    return ConversationSummaryOut(
+        id=conversation_id, title=request.title, updated_at=_epoch_ms(updated_at)
+    )
+
+
+@app.delete("/api/conversations/{conversation_id}")
+async def conversations_delete(
+    conversation_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, bool]:
+    tenant: str = _require_tenant(authorization)
+    return {"ok": await delete_conversation(tenant, conversation_id)}
 
 
 def _encode(event: AgentEvent) -> str:

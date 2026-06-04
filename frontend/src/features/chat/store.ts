@@ -44,6 +44,10 @@ interface ChatState {
   deleteConversation: (id: string) => void;
   addTurn: (conversationId: string, turn: Turn) => void;
   patchTurn: (conversationId: string, turnId: string, patch: Partial<Turn>) => void;
+  // Replace the whole list (server history on login; emptied on logout) and
+  // lazily fill a conversation's turns once they're fetched from the server.
+  replaceConversations: (conversations: Conversation[], activeId: string | null) => void;
+  setTurns: (conversationId: string, turns: Turn[]) => void;
 }
 
 function uuid(): string {
@@ -113,6 +117,15 @@ export const useChatStore = create<ChatState>()(
                   ),
                 }
               : conversation,
+          ),
+        })),
+
+      replaceConversations: (conversations, activeId) => set({ conversations, activeId }),
+
+      setTurns: (conversationId, turns) =>
+        set((state) => ({
+          conversations: state.conversations.map((conversation) =>
+            conversation.id === conversationId ? { ...conversation, turns } : conversation,
           ),
         })),
     }),

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { cn } from "@/shared/lib/cn";
 
+import { signOut } from "../chat/sync";
 import { AuthModal } from "./AuthModal";
 import { useAuthStore } from "./store";
 
@@ -14,7 +15,6 @@ import { useAuthStore } from "./store";
 export function Profile({ collapsed }: { collapsed: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
   const initial: string = user ? user.email.charAt(0).toUpperCase() : "";
 
   return (
@@ -37,7 +37,7 @@ export function Profile({ collapsed }: { collapsed: boolean }) {
       ) : collapsed ? (
         <button
           type="button"
-          onClick={logout}
+          onClick={signOut}
           title={`${user.email} — sign out`}
           className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent transition hover:bg-accent/25"
         >
@@ -56,7 +56,7 @@ export function Profile({ collapsed }: { collapsed: boolean }) {
           </span>
           <button
             type="button"
-            onClick={logout}
+            onClick={signOut}
             aria-label="Sign out"
             title="Sign out"
             className="shrink-0 rounded p-1.5 text-foreground/45 transition hover:bg-foreground/10 hover:text-foreground/90"
