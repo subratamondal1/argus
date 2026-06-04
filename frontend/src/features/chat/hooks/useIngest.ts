@@ -12,11 +12,14 @@ type IngestStatus = "idle" | "loading" | "done" | "error";
 export interface IngestedSource {
   label: string;
   chunks: number;
+  /** A blob: URL (uploaded files) or the http(s) URL — used to preview the source. */
+  previewUrl: string | null;
 }
 
 interface Ingest {
   ingestUrl: (source: string) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
+  removeSource: (label: string) => void;
   clearError: () => void;
   status: IngestStatus;
   error: string | null;
@@ -28,8 +31,12 @@ interface IngestResponse {
   chunks_written: number;
 }
 
+function revoke(source: IngestedSource): void {
+  if (source.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(source.previewUrl);
+}
+
 // Ingest by URL/path (JSON) or by uploading a file (multipart). Successful
-// ingests accumulate as chips the UI can show.
+// ingests accumulate as removable chips the UI can show and preview.
 export function useIngest(): Ingest {
   const activeId = useChatStore((state) => state.activeId);
   const [status, setStatus] = useState<IngestStatus>("idle");
@@ -37,15 +44,19 @@ export function useIngest(): Ingest {
   const [sources, setSources] = useState<IngestedSource[]>([]);
 
   // Ingest chips are scoped to the active conversation — starting or switching
-  // chats clears them so a doc added in one chat never lingers in another.
+  // chats clears them (and frees their preview URLs) so a doc added in one chat
+  // never lingers in another.
   // biome-ignore lint/correctness/useExhaustiveDependencies: activeId is the reset trigger, not a value read inside the effect.
   useEffect(() => {
-    setSources([]);
+    setSources((prev) => {
+      for (const source of prev) revoke(source);
+      return [];
+    });
     setStatus("idle");
     setError(null);
   }, [activeId]);
 
-  async function record(response: Response): Promise<void> {
+  async function record(response: Response, makePreview: () => string | null): Promise<void> {
     if (!response.ok) {
       let detail = `Ingest failed (HTTP ${response.status})`;
       try {
@@ -57,7 +68,10 @@ export function useIngest(): Ingest {
       throw new Error(detail);
     }
     const data = (await response.json()) as IngestResponse;
-    setSources((prev) => [{ label: data.source_uri, chunks: data.chunks_written }, ...prev]);
+    setSources((prev) => [
+      { label: data.source_uri, chunks: data.chunks_written, previewUrl: makePreview() },
+      ...prev,
+    ]);
     setStatus("done");
   }
 
@@ -80,7 +94,7 @@ export function useIngest(): Ingest {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source }),
       });
-      await record(response);
+      await record(response, () => (/^https?:\/\//.test(source) ? source : null));
     });
 
   const uploadFile = (file: File): Promise<void> =>
@@ -91,10 +105,17 @@ export function useIngest(): Ingest {
         method: "POST",
         body: form,
       });
-      await record(response);
+      await record(response, () => URL.createObjectURL(file));
+    });
+
+  const removeSource = (label: string): void =>
+    setSources((prev) => {
+      const target = prev.find((source) => source.label === label);
+      if (target) revoke(target);
+      return prev.filter((source) => source.label !== label);
     });
 
   const clearError = (): void => setError(null);
 
-  return { ingestUrl, uploadFile, clearError, status, error, sources };
+  return { ingestUrl, uploadFile, removeSource, clearError, status, error, sources };
 }

@@ -1,6 +1,17 @@
 "use client";
 
-import { ArrowUp, Check, Link2, Loader2, Paperclip, Plus, Square, X } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  Eye,
+  Link2,
+  Loader2,
+  Paperclip,
+  Plus,
+  Square,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
@@ -12,7 +23,7 @@ import {
 
 import { cn } from "@/shared/lib/cn";
 
-import { useIngest } from "../hooks/useIngest";
+import { type IngestedSource, useIngest } from "../hooks/useIngest";
 import { TextShimmer } from "./TextShimmer";
 
 interface Props {
@@ -28,9 +39,10 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const [showUrl, setShowUrl] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [preview, setPreview] = useState<IngestedSource | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { ingestUrl, uploadFile, clearError, status, error, sources } = useIngest();
+  const { ingestUrl, uploadFile, removeSource, clearError, status, error, sources } = useIngest();
 
   // Grow the textarea to fit its content up to ~8 lines (192px = max-h-48),
   // then scroll. Native rows={1} alone would clip multi-line input.
@@ -45,7 +57,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
     onSubmit(
       question,
       deep,
-      sources.map((source) => source.label),
+      sources.filter((source) => source.chunks > 0).map((source) => source.label),
     );
     setValue("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -88,15 +100,49 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
 
       {(sources.length > 0 || error !== null) && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {sources.map((source) => (
-            <span
-              key={source.label}
-              className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs text-foreground/75"
-            >
-              <Check className="h-3 w-3 text-accent" />
-              {source.label} · {source.chunks} chunks
-            </span>
-          ))}
+          {sources.map((source) => {
+            const empty = source.chunks === 0;
+            return (
+              <span
+                key={source.label}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border py-1 pr-1 pl-2.5 text-xs",
+                  empty
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                    : "border-accent/30 bg-accent/10 text-foreground/80",
+                )}
+              >
+                {empty ? (
+                  <TriangleAlert className="h-3 w-3 shrink-0 text-amber-400" />
+                ) : (
+                  <Check className="h-3 w-3 shrink-0 text-accent" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => source.previewUrl && setPreview(source)}
+                  disabled={source.previewUrl === null}
+                  title={source.previewUrl ? "Preview" : undefined}
+                  className={cn(
+                    "max-w-[220px] truncate",
+                    source.previewUrl && "inline-flex items-center gap-1 hover:underline",
+                  )}
+                >
+                  <span className="truncate">
+                    {source.label} · {empty ? "no text — scanned?" : `${source.chunks} chunks`}
+                  </span>
+                  {source.previewUrl && <Eye className="h-3 w-3 shrink-0 opacity-60" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeSource(source.label)}
+                  aria-label={`Remove ${source.label}`}
+                  className="ml-0.5 shrink-0 rounded-full p-0.5 text-foreground/50 transition hover:bg-foreground/15 hover:text-foreground/90"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            );
+          })}
           {error !== null && (
             <button
               type="button"
@@ -264,6 +310,33 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         multiple
         onChange={(event) => onFiles(event.target.files)}
       />
+
+      {preview?.previewUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close preview"
+            onClick={() => setPreview(null)}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          />
+          <div className="relative flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-foreground/20 bg-surface shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center justify-between gap-3 border-b border-foreground/15 px-4 py-2.5">
+              <span className="truncate font-mono text-[11px] uppercase tracking-widest text-foreground/65">
+                {preview.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                aria-label="Close preview"
+                className="rounded p-1 text-foreground/55 transition hover:bg-foreground/10 hover:text-foreground/90"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <iframe src={preview.previewUrl} title={preview.label} className="flex-1 bg-white" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
