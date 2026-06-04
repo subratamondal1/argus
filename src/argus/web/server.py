@@ -22,7 +22,7 @@ import orjson
 import structlog
 from fastapi import FastAPI, File, Header, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from sse_starlette.sse import EventSourceResponse
 
 from argus.agent.events import AgentEvent
@@ -113,8 +113,10 @@ class IngestResponse(BaseModel):
 
 
 class AuthRequest(BaseModel):
-    email: str = Field(min_length=3)
-    password: str = Field(min_length=1)
+    email: EmailStr
+    # max_length caps the argon2 work a single request can trigger (DoS bound);
+    # the 8-char signup minimum is enforced in argus.auth.signup.
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class UserOut(BaseModel):
@@ -135,10 +137,16 @@ def _auth_response(result: AuthResult) -> AuthResponse:
     )
 
 
-def _resolve_tenant(authorization: str | None, x_tenant_id: str) -> str:
-    # A signed-in user's tenant comes from their verified JWT; the X-Tenant-Id
-    # header is the unauthenticated fallback (defaults to "public").
-    return tenant_from_authorization(authorization) or x_tenant_id
+def _resolve_tenant(authorization: str | None) -> str:
+    # The verified JWT is the ONLY trusted tenant source. No Authorization header ->
+    # the shared "public" corpus; a present-but-invalid token fails CLOSED (401)
+    # rather than falling back to anything a client can set.
+    if authorization is None:
+        return "public"
+    tenant: str | None = tenant_from_authorization(authorization)
+    if tenant is None:
+        raise ApiError(code="invalid_token", status=401, message="invalid or expired session")
+    return tenant
 
 
 @app.post("/api/auth/signup")
@@ -161,12 +169,15 @@ async def auth_login(request: AuthRequest) -> AuthResponse:
 
 @app.get("/api/auth/me")
 async def auth_me(authorization: Annotated[str | None, Header()] = None) -> UserOut:
-    claims: dict[str, str] | None = None
+    claims: dict[str, object] | None = None
     if authorization and authorization.lower().startswith("bearer "):
         claims = decode_token(authorization.split(" ", 1)[1].strip())
     if claims is None:
         raise ApiError(code="unauthenticated", status=401, message="not signed in")
-    return UserOut(id=claims["sub"], email=claims["email"], tenant=claims["tenant"])
+    sub, email, tenant = claims.get("sub"), claims.get("email"), claims.get("tenant")
+    if not (isinstance(sub, str) and isinstance(email, str) and isinstance(tenant, str)):
+        raise ApiError(code="unauthenticated", status=401, message="malformed session")
+    return UserOut(id=sub, email=email, tenant=tenant)
 
 
 def _encode(event: AgentEvent) -> str:
@@ -196,10 +207,9 @@ async def ready() -> dict[str, str]:
 @app.post("/api/ask")
 async def ask(
     request: AskRequest,
-    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
     authorization: Annotated[str | None, Header()] = None,
 ) -> EventSourceResponse:
-    return EventSourceResponse(_ask_events(request, _resolve_tenant(authorization, tenant)))
+    return EventSourceResponse(_ask_events(request, _resolve_tenant(authorization)))
 
 
 async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[str, str]]:
@@ -243,19 +253,18 @@ async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[st
 @app.post("/api/ingest")
 async def ingest(
     request: IngestRequest,
-    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
     authorization: Annotated[str | None, Header()] = None,
 ) -> IngestResponse:
     result = await _ingest(
-        request.source, corpus=request.corpus, tenant=_resolve_tenant(authorization, tenant)
+        request.source, corpus=request.corpus, tenant=_resolve_tenant(authorization)
     )
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
 
 
 async def _ingest(source: str, *, corpus: str, tenant: str = "public") -> IngestResult:
     # Surface ingest/parse failures as a clean, coded 422 (which carries CORS
-    # headers and a readable message) rather than letting them bubble to a bare
-    # 500 the browser reports as "can't reach the backend".
+    # headers). The exact exception goes to the log, not the client, so internal
+    # paths/details aren't leaked in the response.
     try:
         result = await ingest_source(source, corpus=corpus, tenant=tenant)
     except Exception as error:
@@ -263,7 +272,7 @@ async def _ingest(source: str, *, corpus: str, tenant: str = "public") -> Ingest
         raise ApiError(
             code="unprocessable_source",
             status=422,
-            message=f"Couldn't read that source: {error}",
+            message="Couldn't read that source — check the path/URL and that it has text.",
         ) from error
     log.info("api_ingest", source=result.source_uri, chunks=result.chunks_written)
     return result
@@ -280,12 +289,11 @@ def _persist_upload(name: str, data: bytes) -> str:
 @app.post("/api/ingest/upload")
 async def ingest_upload(
     file: Annotated[UploadFile, File()],
-    tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
     authorization: Annotated[str | None, Header()] = None,
 ) -> IngestResponse:
     name: str = Path(file.filename or "upload").name
     data: bytes = await file.read()
     path: str = await asyncio.to_thread(_persist_upload, name, data)
-    result = await _ingest(path, corpus="default", tenant=_resolve_tenant(authorization, tenant))
+    result = await _ingest(path, corpus="default", tenant=_resolve_tenant(authorization))
     log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
     return IngestResponse(source_uri=name, chunks_written=result.chunks_written)

@@ -53,4 +53,4 @@ async def test_ingest_failure_is_a_coded_422(monkeypatch: pytest.MonkeyPatch) ->
     assert response.status_code == 422
     body = response.json()
     assert body["error"]["code"] == "unprocessable_source"
-    assert "no such file" in body["error"]["message"]
+    assert "no such file" not in body["error"]["message"]  # internal detail stays in the log

@@ -25,8 +25,12 @@ from argus.logging import get_logger
 log = get_logger(__name__)
 
 _HASHER: argon2.PasswordHasher = argon2.PasswordHasher()
+# A real hash to verify against when the email is unknown, so login spends the same
+# argon2 time whether or not the account exists (no timing-based enumeration).
+_DUMMY_HASH: str = _HASHER.hash("not-a-real-password-timing-equalizer")
 _ALGORITHM: str = "HS256"
 _MIN_PASSWORD: int = 8
+_REQUIRED_CLAIMS: list[str] = ["exp", "iat", "sub", "email", "tenant"]
 
 
 class AuthError(Exception):
@@ -54,9 +58,17 @@ def issue_token(user_id: str, email: str, tenant: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
 
 
-def decode_token(token: str) -> dict[str, str] | None:
+def decode_token(token: str) -> dict[str, object] | None:
+    # Pin the algorithm (no alg=none/RS-vs-HS confusion), require the full claim set,
+    # and verify exp with small leeway for clock skew. Any failure -> None.
     try:
-        return jwt.decode(token, get_settings().jwt_secret, algorithms=[_ALGORITHM])
+        return jwt.decode(
+            token,
+            get_settings().jwt_secret,
+            algorithms=[_ALGORITHM],
+            options={"require": _REQUIRED_CLAIMS},
+            leeway=30,
+        )
     except jwt.PyJWTError:
         return None
 
@@ -64,7 +76,7 @@ def decode_token(token: str) -> dict[str, str] | None:
 def tenant_from_authorization(authorization: str | None) -> str | None:
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
-    claims: dict[str, str] | None = decode_token(authorization.split(" ", 1)[1].strip())
+    claims: dict[str, object] | None = decode_token(authorization.split(" ", 1)[1].strip())
     tenant: object = claims.get("tenant") if claims else None
     return tenant if isinstance(tenant, str) else None
 
@@ -99,7 +111,10 @@ async def login(email: str, password: str) -> AuthResult:
         row: asyncpg.Record | None = await connection.fetchrow(
             "SELECT id::text AS id, password_hash, tenant FROM users WHERE email = $1", normalized
         )
-    if row is None or not _verify(password, row["password_hash"]):
+    # Always run argon2 (against a dummy hash when the email is unknown) so the
+    # response time doesn't reveal whether the account exists.
+    password_hash: str = row["password_hash"] if row is not None else _DUMMY_HASH
+    if not _verify(password, password_hash) or row is None:
         raise AuthError("invalid email or password")
     log.info("login", email=normalized)
     return AuthResult(

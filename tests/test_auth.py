@@ -35,6 +35,32 @@ def test_tenant_from_authorization() -> None:
     assert tenant_from_authorization("Bearer not-a-token") is None
 
 
+def test_resolve_tenant_is_jwt_only_and_fails_closed() -> None:
+    from argus.web.errors import ApiError
+    from argus.web.server import _resolve_tenant
+
+    assert _resolve_tenant(None) == "public"  # anonymous -> shared public corpus only
+    token = issue_token("u1", "a@b.com", "tenant-secret")
+    assert _resolve_tenant(f"Bearer {token}") == "tenant-secret"
+    with pytest.raises(ApiError):  # present-but-invalid token fails CLOSED (no header fallback)
+        _resolve_tenant("Bearer tampered.garbage.token")
+    with pytest.raises(ApiError):
+        _resolve_tenant("Basic abc")
+
+
+def test_default_jwt_secret_blocked_in_production() -> None:
+    from pydantic import ValidationError
+
+    from argus.config import _DEFAULT_JWT_SECRET, Settings
+
+    with pytest.raises(ValidationError):
+        Settings(environment="production", jwt_secret=_DEFAULT_JWT_SECRET)
+    with pytest.raises(ValidationError):
+        Settings(environment="production", jwt_secret="too-short")
+    Settings(environment="production", jwt_secret="x" * 40)  # real secret: ok
+    Settings(environment="development", jwt_secret=_DEFAULT_JWT_SECRET)  # dev allows the default
+
+
 @pytest.mark.integration
 async def test_signup_login_flow() -> None:
     import asyncpg

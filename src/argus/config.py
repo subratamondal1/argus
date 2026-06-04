@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_JWT_SECRET: str = "dev-insecure-secret-change-me-in-production-please"
 
 
 class Settings(BaseSettings):
@@ -14,6 +17,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+    )
+
+    environment: str = Field(
+        default="development", description="development | production — gates fail-fast checks."
     )
 
     model: str = Field(
@@ -169,15 +176,28 @@ class Settings(BaseSettings):
 
     # --- Auth (email/password -> HS256 JWT; each user is bound to a tenant) ---
     jwt_secret: str = Field(
-        default="dev-insecure-secret-change-me-in-production-please",
+        default=_DEFAULT_JWT_SECRET,
         description="HS256 signing secret for auth JWTs (>=32 bytes) — MUST be overridden in prod.",
     )
     jwt_expiry_s: int = Field(
-        default=604_800, gt=0, description="JWT lifetime in seconds (default 7 days)."
+        default=86_400, gt=0, description="JWT lifetime in seconds (default 1 day)."
     )
 
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
+
+    @model_validator(mode="after")
+    def _require_real_jwt_secret(self) -> Self:
+        # Fail fast: outside development, a JWT secret that's the public default or
+        # under 32 bytes lets anyone forge tokens for any tenant. Refuse to boot.
+        if self.environment != "development" and (
+            self.jwt_secret == _DEFAULT_JWT_SECRET or len(self.jwt_secret) < 32
+        ):
+            raise ValueError(
+                "ARGUS_JWT_SECRET must be a unique secret of at least 32 bytes outside "
+                "development (set ARGUS_ENVIRONMENT=development to allow the dev default)."
+            )
+        return self
 
     @property
     def searxng_url(self) -> str:
