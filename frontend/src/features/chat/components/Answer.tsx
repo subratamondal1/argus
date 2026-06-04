@@ -27,6 +27,7 @@ function citeId(children: ReactNode): number {
 export function Answer({
   text,
   streaming,
+  refining = false,
   sources,
   highlighted,
   onCitationEnter,
@@ -34,6 +35,7 @@ export function Answer({
 }: {
   text: string;
   streaming: boolean;
+  refining?: boolean;
   sources: Source[];
   highlighted: number | null;
   onCitationEnter: (id: number) => void;
@@ -76,7 +78,9 @@ export function Answer({
       >
         {body}
       </ReactMarkdown>
-      {streaming && <span className="argus-cursor" aria-hidden />}
+      {/* No blinking cursor during the refine gap — tokens have paused, so a lone
+          cursor reads as "stuck". The Reviewer Agent indicator below carries it. */}
+      {streaming && !refining && <span className="argus-cursor" aria-hidden />}
     </div>
   );
 }

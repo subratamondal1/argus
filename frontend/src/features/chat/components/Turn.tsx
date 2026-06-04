@@ -73,7 +73,7 @@ export function Turn({
               <p
                 className={cn(
                   "font-mono text-[10px] uppercase tracking-widest tabular-nums",
-                  turn.refining ? "animate-pulse text-accent" : "text-foreground/45",
+                  turn.refining ? "text-accent" : "text-foreground/45",
                 )}
               >
                 {turn.refining
@@ -85,22 +85,19 @@ export function Turn({
               {!streaming && <AnswerActions question={turn.question} answer={turn.answer} />}
             </div>
           </header>
-          {/* While refining, the answer shown is the prior draft being improved —
-              dim it so it reads as provisional, not final. */}
-          <div
-            className={cn(
-              "px-4 py-4 transition-opacity duration-300 md:px-5 md:py-5",
-              turn.refining && "opacity-50",
-            )}
-          >
+          <div className="px-4 py-4 md:px-5 md:py-5">
             <Answer
               text={turn.answer}
               streaming={streaming}
+              refining={turn.refining}
               sources={sources}
               highlighted={highlighted}
               onCitationEnter={setHighlighted}
               onCitationLeave={() => setHighlighted(null)}
             />
+            {/* The draft stays fully readable; a launching "Reviewer Agent" makes
+                clear the pause is deliberate self-checking, not a stuck cursor. */}
+            {turn.refining && <ReviewingIndicator />}
           </div>
         </section>
       )}
@@ -113,6 +110,32 @@ export function Turn({
 
       {!streaming && <Related questions={turn.related ?? []} onPick={onFollowUp} />}
     </article>
+  );
+}
+
+// Shown below the draft while the agent self-verifies and re-researches. Styled
+// like the launching of a new agent (pulsing accent dot + label), so the pause
+// reads as deliberate work rather than a frozen stream.
+function ReviewingIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: editorialEase }}
+      className="mt-5 flex items-center gap-2.5 border-t border-foreground/10 pt-4"
+    >
+      <motion.span
+        animate={{ scale: [1, 1.25, 1], opacity: [0.7, 1, 0.7] }}
+        transition={{ duration: 1.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+        className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_rgba(37,99,235,0.9)] dark:shadow-[0_0_10px_rgba(106,166,255,1)]"
+      />
+      <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
+        Reviewer Agent
+      </span>
+      <span className="font-serif text-[13px] italic leading-snug text-foreground/65">
+        verifying the answer and refining for accuracy…
+      </span>
+    </motion.div>
   );
 }
 
