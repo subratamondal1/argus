@@ -94,7 +94,7 @@ export function ChatPage() {
         <div className="border-t border-foreground/10 bg-background/80 backdrop-blur">
           <div className="mx-auto max-w-3xl px-4 py-3">
             <Composer onSubmit={ask} onCancel={cancel} busy={streaming} />
-            <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-widest text-foreground/35">
+            <p className="mt-2 truncate whitespace-nowrap text-center font-mono text-[clamp(6.5px,2.3vw,10px)] uppercase tracking-widest text-foreground/35">
               Argus can be wrong — it cites sources so you can verify
             </p>
           </div>
