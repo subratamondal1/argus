@@ -167,6 +167,15 @@ class Settings(BaseSettings):
         description="Route every LiteLLM call to Langfuse (set LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST).",
     )
 
+    # --- Auth (email/password -> HS256 JWT; each user is bound to a tenant) ---
+    jwt_secret: str = Field(
+        default="dev-insecure-secret-change-me-in-production-please",
+        description="HS256 signing secret for auth JWTs (>=32 bytes) — MUST be overridden in prod.",
+    )
+    jwt_expiry_s: int = Field(
+        default=604_800, gt=0, description="JWT lifetime in seconds (default 7 days)."
+    )
+
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 

@@ -27,6 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from argus.agent.events import AgentEvent
 from argus.agent.prompts import related_questions_messages
+from argus.auth import AuthError, AuthResult, decode_token, login, signup, tenant_from_authorization
 from argus.builders import build_adaptive, build_llm
 from argus.config import get_settings
 from argus.db import close_pool, get_pool
@@ -111,6 +112,63 @@ class IngestResponse(BaseModel):
     chunks_written: int
 
 
+class AuthRequest(BaseModel):
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=1)
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    tenant: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
+
+
+def _auth_response(result: AuthResult) -> AuthResponse:
+    return AuthResponse(
+        token=result.token,
+        user=UserOut(id=result.user_id, email=result.email, tenant=result.tenant),
+    )
+
+
+def _resolve_tenant(authorization: str | None, x_tenant_id: str) -> str:
+    # A signed-in user's tenant comes from their verified JWT; the X-Tenant-Id
+    # header is the unauthenticated fallback (defaults to "public").
+    return tenant_from_authorization(authorization) or x_tenant_id
+
+
+@app.post("/api/auth/signup")
+async def auth_signup(request: AuthRequest) -> AuthResponse:
+    try:
+        result = await signup(request.email, request.password)
+    except AuthError as error:
+        raise ApiError(code="signup_failed", status=409, message=str(error)) from error
+    return _auth_response(result)
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: AuthRequest) -> AuthResponse:
+    try:
+        result = await login(request.email, request.password)
+    except AuthError as error:
+        raise ApiError(code="invalid_credentials", status=401, message=str(error)) from error
+    return _auth_response(result)
+
+
+@app.get("/api/auth/me")
+async def auth_me(authorization: Annotated[str | None, Header()] = None) -> UserOut:
+    claims: dict[str, str] | None = None
+    if authorization and authorization.lower().startswith("bearer "):
+        claims = decode_token(authorization.split(" ", 1)[1].strip())
+    if claims is None:
+        raise ApiError(code="unauthenticated", status=401, message="not signed in")
+    return UserOut(id=claims["sub"], email=claims["email"], tenant=claims["tenant"])
+
+
 def _encode(event: AgentEvent) -> str:
     return orjson.dumps({"type": event.kind, **event.data}).decode()
 
@@ -139,8 +197,9 @@ async def ready() -> dict[str, str]:
 async def ask(
     request: AskRequest,
     tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+    authorization: Annotated[str | None, Header()] = None,
 ) -> EventSourceResponse:
-    return EventSourceResponse(_ask_events(request, tenant))
+    return EventSourceResponse(_ask_events(request, _resolve_tenant(authorization, tenant)))
 
 
 async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[str, str]]:
@@ -185,8 +244,11 @@ async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[st
 async def ingest(
     request: IngestRequest,
     tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+    authorization: Annotated[str | None, Header()] = None,
 ) -> IngestResponse:
-    result = await _ingest(request.source, corpus=request.corpus, tenant=tenant)
+    result = await _ingest(
+        request.source, corpus=request.corpus, tenant=_resolve_tenant(authorization, tenant)
+    )
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
 
 
@@ -219,10 +281,11 @@ def _persist_upload(name: str, data: bytes) -> str:
 async def ingest_upload(
     file: Annotated[UploadFile, File()],
     tenant: Annotated[str, Header(alias="X-Tenant-Id")] = "public",
+    authorization: Annotated[str | None, Header()] = None,
 ) -> IngestResponse:
     name: str = Path(file.filename or "upload").name
     data: bytes = await file.read()
     path: str = await asyncio.to_thread(_persist_upload, name, data)
-    result = await _ingest(path, corpus="default", tenant=tenant)
+    result = await _ingest(path, corpus="default", tenant=_resolve_tenant(authorization, tenant))
     log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
     return IngestResponse(source_uri=name, chunks_written=result.chunks_written)
