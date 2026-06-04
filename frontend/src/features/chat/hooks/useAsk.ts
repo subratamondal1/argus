@@ -8,7 +8,7 @@ import { logger } from "@/shared/lib/logger";
 import { useChatStore } from "../store";
 import type { AgentEvent } from "../types";
 
-const RESETS_ANSWER = new Set(["plan", "tool", "synthesize"]);
+const RESETS_ANSWER = new Set(["plan", "tool"]);
 
 interface Ask {
   ask: (question: string, deep: boolean, ingested?: string[]) => Promise<void>;
@@ -16,9 +16,11 @@ interface Ask {
 }
 
 // Streams POST /api/ask into a new turn of the active conversation, creating a
-// conversation if there isn't one. Progress events drive the steps; token
-// events stream the answer; the answer resets on each phase so only the final
-// run shows. SSE frames are CRLF-delimited.
+// conversation if there isn't one. Progress events drive the steps; token events
+// stream the answer. When the agent re-synthesizes after self-verification, the
+// prior draft is held on screen (and dimmed via `refining`) and swapped only when
+// the new draft's first token lands — so the panel never blanks. SSE frames are
+// CRLF-delimited.
 export function useAsk(): Ask {
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -42,16 +44,46 @@ export function useAsk(): Ask {
 
     let events: AgentEvent[] = [];
     let answer = "";
+    // A `synthesize` arms a deferred clear: the previous draft stays on screen
+    // (so the panel never blanks during the verify/refine gap) and is replaced
+    // only when the first token of the new draft lands.
+    let clearOnNextToken = false;
 
     const apply = (event: AgentEvent): void => {
       if (event.type === "token") {
+        if (clearOnNextToken) {
+          answer = "";
+          clearOnNextToken = false;
+        }
         answer += event.text ?? "";
-        patch(conversationId, turnId, { answer });
+        patch(conversationId, turnId, { answer, refining: false });
+        return;
+      }
+      if (event.type === "synthesize") {
+        // Don't wipe the visible draft yet — keep it until the refined draft
+        // starts streaming (or the final `answer` arrives).
+        clearOnNextToken = true;
+        events = [...events, event];
+        patch(conversationId, turnId, { events });
+        return;
+      }
+      if (event.type === "review") {
+        // Self-verification has begun; hold and dim the current draft.
+        events = [...events, event];
+        patch(conversationId, turnId, { events, refining: true });
+        return;
+      }
+      if (event.type === "reflect") {
+        // Complete -> the streamed draft stands. Incomplete -> a refined draft is
+        // coming, so stay in the refining state until its first token.
+        events = [...events, event];
+        patch(conversationId, turnId, { events, refining: event.complete !== true });
         return;
       }
       if (event.type === "answer") {
         answer = event.text ?? answer;
-        patch(conversationId, turnId, { answer });
+        clearOnNextToken = false;
+        patch(conversationId, turnId, { answer, refining: false });
         return;
       }
       if (event.type === "related") {
@@ -113,14 +145,18 @@ export function useAsk(): Ask {
           }
         }
       }
-      patch(conversationId, turnId, { status: "done" });
+      patch(conversationId, turnId, { status: "done", refining: false });
     } catch (caught) {
       if (caught instanceof Error && caught.name === "AbortError") {
-        patch(conversationId, turnId, { status: "done" });
+        patch(conversationId, turnId, { status: "done", refining: false });
         return;
       }
       logger.error("ask failed", caught);
-      patch(conversationId, turnId, { error: friendlyError(caught), status: "error" });
+      patch(conversationId, turnId, {
+        error: friendlyError(caught),
+        status: "error",
+        refining: false,
+      });
     }
   }, []);
 

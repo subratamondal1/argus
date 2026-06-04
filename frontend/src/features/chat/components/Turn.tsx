@@ -70,15 +70,29 @@ export function Turn({
               Answer
             </p>
             <div className="flex items-center gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-widest tabular-nums text-foreground/45">
-                {streaming
-                  ? "Streaming"
-                  : `Synthesized · ${sources.length} source${sources.length === 1 ? "" : "s"}`}
+              <p
+                className={cn(
+                  "font-mono text-[10px] uppercase tracking-widest tabular-nums",
+                  turn.refining ? "animate-pulse text-accent" : "text-foreground/45",
+                )}
+              >
+                {turn.refining
+                  ? "Verifying & refining…"
+                  : streaming
+                    ? "Streaming"
+                    : `Synthesized · ${sources.length} source${sources.length === 1 ? "" : "s"}`}
               </p>
               {!streaming && <AnswerActions question={turn.question} answer={turn.answer} />}
             </div>
           </header>
-          <div className="px-4 py-4 md:px-5 md:py-5">
+          {/* While refining, the answer shown is the prior draft being improved —
+              dim it so it reads as provisional, not final. */}
+          <div
+            className={cn(
+              "px-4 py-4 transition-opacity duration-300 md:px-5 md:py-5",
+              turn.refining && "opacity-50",
+            )}
+          >
             <Answer
               text={turn.answer}
               streaming={streaming}

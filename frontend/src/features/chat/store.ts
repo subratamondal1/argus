@@ -21,6 +21,10 @@ export interface Turn {
   artifact: Artifact | null;
   related: string[];
   status: ChatStatus;
+  // True while the agent is verifying/refining a streamed draft (the reflection
+  // pass): the displayed answer is the prior draft, held and dimmed until the
+  // refined one starts streaming. Optional so older persisted turns default off.
+  refining?: boolean;
   error: string | null;
 }
 

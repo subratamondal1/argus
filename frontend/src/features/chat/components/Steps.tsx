@@ -32,6 +32,7 @@ interface Grouped {
   tools: ToolEntry[];
   synthFindings: number | null;
   reflection: string | null;
+  reviewing: boolean;
 }
 
 const RESEARCHER_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
@@ -49,6 +50,7 @@ function group(events: AgentEvent[]): Grouped {
     tools,
     synthFindings: null,
     reflection: null,
+    reviewing: false,
   };
 
   for (const event of events) {
@@ -60,10 +62,13 @@ function group(events: AgentEvent[]): Grouped {
       grouped.planned = grouped.plannedQuestions.length;
     } else if (event.type === "synthesize") {
       grouped.synthFindings = event.findings ?? 0;
+    } else if (event.type === "review") {
+      grouped.reviewing = true;
     } else if (event.type === "reflect") {
       grouped.reflection = event.complete
         ? "complete"
         : `following up on ${(event.missing ?? []).length}`;
+      grouped.reviewing = event.complete !== true;
     } else if (event.sub_question !== undefined) {
       const question = event.sub_question;
       let card = map.get(question);
@@ -250,7 +255,7 @@ function ResearchSteps({ g, streaming }: { g: Grouped; streaming: boolean }) {
 
       <PhaseRow
         label="Synthesizer Agent"
-        detail={synthesizerDetail(synthesizerStatus, g.reflection)}
+        detail={synthesizerDetail(synthesizerStatus, g.reflection, g.reviewing && streaming)}
         status={synthesizerStatus}
       />
     </Panel>
@@ -425,7 +430,8 @@ function researchersDetail(status: Status, done: number, total: number): string 
   return "Awaiting decomposition.";
 }
 
-function synthesizerDetail(status: Status, reflection: string | null): string {
+function synthesizerDetail(status: Status, reflection: string | null, reviewing: boolean): string {
+  if (reviewing) return "Verifying the draft and refining for accuracy…";
   if (status === "complete") {
     return reflection === "complete"
       ? "Synthesized and verified a cited answer."

@@ -21,6 +21,7 @@ export interface AgentEvent {
     | "turn"
     | "tool"
     | "synthesize"
+    | "review"
     | "reflect"
     | "token"
     | "triage"
