@@ -3,7 +3,6 @@
 import {
   ArrowUp,
   Check,
-  Eye,
   Link2,
   Loader2,
   Paperclip,
@@ -204,9 +203,8 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                   <span className="line-clamp-2 break-all text-[10px] leading-[1.15]">
                     {source.label}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] text-foreground/50">
-                    {source.previewUrl && <Eye className="h-2.5 w-2.5 shrink-0" />}
-                    {empty ? "no text" : `${source.chunks} chunks`}
+                  <span className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-wide text-foreground/55">
+                    {empty ? `${docType(source.label)} · no text` : docType(source.label)}
                   </span>
                 </button>
               </div>
@@ -422,6 +420,20 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         )}
     </div>
   );
+}
+
+// Short uppercase type badge for a tile: a file's extension (PDF, MD, DOCX…),
+// WEB for a plain URL, or FILE when there's no usable extension.
+function docType(label: string): string {
+  if (/^https?:\/\//i.test(label)) {
+    const path: string = (label.split(/[?#]/)[0] ?? label).replace(/^https?:\/\/[^/]+/i, "");
+    const base: string = path.split("/").filter(Boolean).at(-1) ?? "";
+    const ext: string = base.includes(".") ? (base.split(".").at(-1) ?? "") : "";
+    return /^[a-z0-9]{1,5}$/i.test(ext) ? ext.toUpperCase() : "WEB";
+  }
+  const base: string = label.split(/[/\\]/).filter(Boolean).at(-1) ?? label;
+  const ext: string = base.includes(".") ? (base.split(".").at(-1) ?? "") : "";
+  return /^[a-z0-9]{1,6}$/i.test(ext) ? ext.toUpperCase() : "FILE";
 }
 
 function MenuItem({
