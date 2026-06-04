@@ -133,8 +133,19 @@ export function useIngest(): Ingest {
       await record(response, () => (/^https?:\/\//.test(source) ? source : null));
     });
 
-  const uploadFile = (file: File): Promise<void> =>
-    guard(file.name, async (signal) => {
+  const uploadFile = (file: File): Promise<void> => {
+    // The ingest pipeline extracts TEXT (pdf/docx/pptx/md/txt/html). It has no
+    // OCR or vision path, so an image would hit the UTF-8 text fallback and fail
+    // with a decode error — short-circuit with a clear message instead.
+    if (file.type.startsWith("image/")) {
+      setError(
+        "Images aren't supported yet — Argus reads text, not pixels (no OCR). " +
+          "Paste or attach a PDF, DOCX, or text document.",
+      );
+      setStatus("error");
+      return Promise.resolve();
+    }
+    return guard(file.name, async (signal) => {
       const form = new FormData();
       form.append("file", file);
       const response = await fetch(`${API_BASE}/api/ingest/upload`, {
@@ -144,6 +155,7 @@ export function useIngest(): Ingest {
       });
       await record(response, () => URL.createObjectURL(file));
     });
+  };
 
   const removeSource = (label: string): void =>
     setSources((prev) => {

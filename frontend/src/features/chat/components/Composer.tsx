@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  type ClipboardEvent,
   type DragEvent,
   type FormEvent,
   type KeyboardEvent,
@@ -107,6 +108,17 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
     event.preventDefault();
     setDragging(false);
     onFiles(event.dataTransfer.files);
+  }
+
+  // Paste a screenshot or a file copied from the OS straight into the composer:
+  // the clipboard carries them as File objects in clipboardData.files. Route them
+  // through the same ingest path as drag-drop/the picker. Only swallow the paste
+  // when files are present — a normal text paste still lands in the textarea.
+  function onPaste(event: ClipboardEvent<HTMLTextAreaElement>): void {
+    const files: FileList = event.clipboardData.files;
+    if (files.length === 0) return;
+    event.preventDefault();
+    onFiles(files);
   }
 
   return (
@@ -230,6 +242,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             autosize(event.target);
           }}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder="Ask Argus anything…"
           rows={1}
           className="max-h-48 w-full resize-none overflow-y-auto bg-transparent px-4 pt-3.5 font-serif text-[15px] outline-none placeholder:text-foreground/50"
