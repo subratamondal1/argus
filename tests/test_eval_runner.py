@@ -79,6 +79,25 @@ async def test_keyword_check_is_punctuation_insensitive() -> None:
     assert report.keyword_pass_rate == 1.0
 
 
+async def test_too_few_cases_fails_the_gate_without_crashing() -> None:
+    golden = [GoldenItem(question="q1", relevant_sources=["a.md"])]
+    thresholds = Thresholds(min_cases=6)  # one case, floor of six
+
+    async def retrieve(question: str) -> list[RetrievedChunk]:
+        return [_hit_chunk()]
+
+    async def answer(question: str) -> str:
+        return "whatever"
+
+    async def judge(question: str, answer_text: str, context: str) -> Verdict:
+        return Verdict(passed=True, reason="ok")
+
+    report = await evaluate(golden, thresholds, retrieve=retrieve, answer=answer, judge=judge)
+    assert not report.passed
+    assert report.n == 1
+    assert any("too few eval cases" in failure for failure in report.failures)
+
+
 async def test_retrieval_miss_fails_the_gate() -> None:
     golden = [GoldenItem(question="q1", relevant_sources=["a.md"])]
     thresholds = Thresholds(

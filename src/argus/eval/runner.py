@@ -103,6 +103,24 @@ async def evaluate(
 
 
 def _aggregate(results: list[ItemResult], thresholds: Thresholds) -> EvalReport:
+    # Guard a too-small (or empty) golden set: a 2-case gate that "passes" is
+    # noise, and mean([]) would raise. Fail closed and say so.
+    if len(results) < thresholds.min_cases:
+        return EvalReport(
+            n=len(results),
+            hit_at_k=0.0,
+            precision_at_k=0.0,
+            mrr=0.0,
+            judge_pass_rate=0.0,
+            keyword_pass_rate=0.0,
+            passed=False,
+            failures=[
+                f"too few eval cases: {len(results)} < min_cases {thresholds.min_cases} "
+                "(grow the golden set)"
+            ],
+            items=results,
+        )
+
     hit: float = mean([result.hit for result in results])
     precision: float = mean([result.precision for result in results])
     mrr: float = mean([result.reciprocal_rank for result in results])

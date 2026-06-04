@@ -35,6 +35,9 @@ class Thresholds(BaseModel):
     min_judge_pass_rate: float = 0.7
     min_keyword_pass_rate: float = 0.6
     min_judge_kappa: float = 0.6
+    # Permissive default so ad-hoc/test threshold sets don't trip the guard; the
+    # production floor lives in eval/thresholds.json.
+    min_cases: int = Field(default=1, gt=0)
 
 
 def load_golden(path: Path) -> list[GoldenItem]:
