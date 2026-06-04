@@ -120,6 +120,10 @@ class Orchestrator:
             await emit(on_event, "sources", items=numbered_payload(sources))
             await emit(on_event, "synthesize", findings=len(findings))
             draft = await self._synthesize(question, findings, sources, on_event)
+            # Signal that self-verification is starting BEFORE the (non-streaming)
+            # reflection call, so the UI can show "verifying/refining" during the
+            # gap instead of looking stalled while the draft sits there.
+            await emit(on_event, "review")
             reflection: Reflection = await self.llm.complete_structured(
                 reflection_messages(question, draft), Reflection
             )

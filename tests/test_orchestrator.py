@@ -85,3 +85,19 @@ async def test_orchestrator_emits_a_sources_event_before_synthesis() -> None:
     assert kinds.index("sources") < kinds.index("synthesize")
     sources_event = next(event for event in events if event.kind == "sources")
     assert isinstance(sources_event.data["items"], list)
+
+
+async def test_orchestrator_emits_review_before_reflect() -> None:
+    events: list[AgentEvent] = []
+
+    async def sink(event: AgentEvent) -> None:
+        events.append(event)
+
+    orchestrator = Orchestrator(
+        llm=FakeResearchLLM(), registry=ToolRegistry(), searcher_budget=_budget()
+    )
+    await orchestrator.run("What is the latest model?", on_event=sink)
+
+    kinds = [event.kind for event in events]
+    assert "review" in kinds
+    assert kinds.index("synthesize") < kinds.index("review") < kinds.index("reflect")
