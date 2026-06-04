@@ -46,7 +46,16 @@ export function useIngest(): Ingest {
   }, [activeId]);
 
   async function record(response: Response): Promise<void> {
-    if (!response.ok) throw new Error(`ingest failed: HTTP ${response.status}`);
+    if (!response.ok) {
+      let detail = `Ingest failed (HTTP ${response.status})`;
+      try {
+        const body = (await response.json()) as { detail?: string };
+        if (body.detail) detail = body.detail;
+      } catch {
+        // no JSON body — keep the status-based message
+      }
+      throw new Error(detail);
+    }
     const data = (await response.json()) as IngestResponse;
     setSources((prev) => [{ label: data.source_uri, chunks: data.chunks_written }, ...prev]);
     setStatus("done");

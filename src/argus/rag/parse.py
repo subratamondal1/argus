@@ -1,8 +1,9 @@
 """Turn a path or URL into Markdown for chunking.
 
 URLs and local HTML go through trafilatura; plain-text/Markdown files are read
-as-is; PDF/DOCX/PPTX go through docling — an optional, lazily-imported extra so
-the default install stays light. Local-file reads run off the event loop.
+as-is; PDFs are extracted with pypdf (lightweight, always available), upgrading
+to docling when the optional 'parse' extra is installed; DOCX/PPTX need docling.
+Local-file reads run off the event loop.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ _USER_AGENT: str = (
 )
 _TEXT_SUFFIXES: frozenset[str] = frozenset({".md", ".markdown", ".txt", ".rst"})
 _HTML_SUFFIXES: frozenset[str] = frozenset({".html", ".htm"})
-_DOCLING_SUFFIXES: frozenset[str] = frozenset({".pdf", ".docx", ".pptx"})
+_DOCLING_SUFFIXES: frozenset[str] = frozenset({".docx", ".pptx"})
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,8 @@ def _parse_file(source: str) -> ParsedDoc:
         return ParsedDoc(
             uri=str(path), markdown=_html_to_markdown(path.read_text(encoding="utf-8"))
         )
+    if suffix == ".pdf":
+        return ParsedDoc(uri=str(path), markdown=_parse_pdf(path))
     if suffix in _DOCLING_SUFFIXES:
         return ParsedDoc(uri=str(path), markdown=_parse_with_docling(path))
     return ParsedDoc(uri=str(path), markdown=path.read_text(encoding="utf-8"))
@@ -76,6 +79,29 @@ async def _parse_url(url: str) -> ParsedDoc:
     markdown: str = _html_to_markdown(response.text)
     log.info("parse_url", url=url, chars=len(markdown))
     return ParsedDoc(uri=url, markdown=markdown)
+
+
+def _parse_pdf(path: Path) -> str:
+    # Prefer docling when the 'parse' extra is installed (richer layout/tables);
+    # otherwise fall back to pypdf so a PDF upload always works out of the box.
+    try:
+        from docling.document_converter import DocumentConverter  # ty: ignore[unresolved-import]
+    except ModuleNotFoundError:
+        return _parse_pdf_pypdf(path)
+    converter = DocumentConverter()
+    markdown: str = converter.convert(str(path)).document.export_to_markdown()
+    log.info("parse_docling", path=str(path), chars=len(markdown))
+    return markdown
+
+
+def _parse_pdf_pypdf(path: Path) -> str:
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(path))
+    pages: list[str] = [(page.extract_text() or "").strip() for page in reader.pages]
+    markdown: str = "\n\n".join(page for page in pages if page)
+    log.info("parse_pdf", path=str(path), pages=len(reader.pages), chars=len(markdown))
+    return markdown
 
 
 def _parse_with_docling(path: Path) -> str:

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Annotated
 
 import orjson
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -145,9 +145,21 @@ async def _ask_events(request: AskRequest) -> AsyncIterator[dict[str, str]]:
 
 @app.post("/api/ingest")
 async def ingest(request: IngestRequest) -> IngestResponse:
-    result = await ingest_source(request.source, corpus=request.corpus)
-    log.info("api_ingest", source=result.source_uri, chunks=result.chunks_written)
+    result = await _ingest(request.source, corpus=request.corpus)
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
+
+
+async def _ingest(source: str, *, corpus: str):
+    # Surface ingest/parse failures as a clean 422 (which carries CORS headers and
+    # a readable detail) rather than letting them bubble to a bare 500 the browser
+    # reports as "can't reach the backend".
+    try:
+        result = await ingest_source(source, corpus=corpus)
+    except Exception as error:
+        log.warning("api_ingest_failed", source=source, error=str(error))
+        raise HTTPException(status_code=422, detail=f"Couldn't read that source: {error}") from error
+    log.info("api_ingest", source=result.source_uri, chunks=result.chunks_written)
+    return result
 
 
 def _persist_upload(name: str, data: bytes) -> str:
@@ -163,6 +175,6 @@ async def ingest_upload(file: Annotated[UploadFile, File()]) -> IngestResponse:
     name: str = Path(file.filename or "upload").name
     data: bytes = await file.read()
     path: str = await asyncio.to_thread(_persist_upload, name, data)
-    result = await ingest_source(path, corpus="default")
+    result = await _ingest(path, corpus="default")
     log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
     return IngestResponse(source_uri=name, chunks_written=result.chunks_written)
