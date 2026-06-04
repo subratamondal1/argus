@@ -116,7 +116,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
           event.preventDefault();
           send();
         }}
-        className="rounded-2xl border border-foreground/30 bg-foreground/[0.05] shadow-[0_10px_34px_-14px_rgba(0,0,0,0.8)] transition-all duration-200 focus-within:border-accent/60 focus-within:bg-foreground/[0.07] focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_12px_38px_-12px_rgba(37,99,235,0.4)] dark:focus-within:shadow-[0_0_0_3px_rgba(106,166,255,0.18),0_14px_44px_-12px_rgba(106,166,255,0.4)]"
+        className="rounded-2xl border border-foreground/30 bg-foreground/[0.05] shadow-[0_10px_34px_-14px_rgba(0,0,0,0.8)] transition-all duration-200 has-[textarea:focus]:border-accent/60 has-[textarea:focus]:bg-foreground/[0.07] has-[textarea:focus]:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_12px_38px_-12px_rgba(37,99,235,0.4)] dark:has-[textarea:focus]:shadow-[0_0_0_3px_rgba(106,166,255,0.18),0_14px_44px_-12px_rgba(106,166,255,0.4)]"
       >
         <textarea
           ref={textareaRef}
