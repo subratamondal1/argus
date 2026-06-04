@@ -143,7 +143,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         // horizontally once they overflow, rather than wrapping and growing taller.
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
           {pending !== null && (
-            <div className="flex h-[58px] w-[58px] shrink-0 flex-col overflow-hidden rounded-md border border-foreground/25 bg-foreground/[0.06] p-1.5 text-foreground/70">
+            <div className="flex h-16 w-16 shrink-0 flex-col overflow-hidden rounded-md border border-foreground/25 bg-foreground/[0.06] p-1.5 text-foreground/70">
               <div className="flex items-start justify-between">
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-foreground/55" />
                 <button
@@ -158,7 +158,6 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
               </div>
               <div className="mt-0.5 flex flex-1 flex-col justify-end">
                 <span className="line-clamp-2 break-all text-[10px] leading-[1.15]">{pending}</span>
-                <span className="mt-0.5 text-[9px] text-foreground/45">Reading…</span>
               </div>
             </div>
           )}
@@ -171,7 +170,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
                 key={source.label}
                 title={source.label}
                 className={cn(
-                  "flex h-[58px] w-[58px] shrink-0 flex-col overflow-hidden rounded-md border p-1.5",
+                  "flex h-16 w-16 shrink-0 flex-col overflow-hidden rounded-md border p-1.5",
                   empty
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                     : "border-accent/30 bg-accent/10 text-foreground/80",
@@ -284,17 +283,14 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
               aria-label="Add a source"
               aria-expanded={menuOpen}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full border transition disabled:cursor-default",
+                "flex h-8 w-8 items-center justify-center rounded-full border transition disabled:cursor-default disabled:opacity-40",
                 menuOpen
                   ? "border-accent/50 bg-accent/10 text-accent"
                   : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground/90",
               )}
             >
-              {status === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className={cn("h-4 w-4 transition-transform", menuOpen && "rotate-45")} />
-              )}
+              {/* No spinner here — the pending tile above is the single upload indicator. */}
+              <Plus className={cn("h-4 w-4 transition-transform", menuOpen && "rotate-45")} />
             </button>
 
             {menuOpen && (
