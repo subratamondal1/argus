@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_BASE, friendlyError } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
+import { authHeader } from "../../auth/store";
 import { useChatStore } from "../store";
 
 type IngestStatus = "idle" | "loading" | "done" | "error";
@@ -126,7 +127,7 @@ export function useIngest(): Ingest {
     guard(source, async (signal) => {
       const response = await fetch(`${API_BASE}/api/ingest`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ source }),
         signal,
       });
@@ -150,6 +151,7 @@ export function useIngest(): Ingest {
       form.append("file", file);
       const response = await fetch(`${API_BASE}/api/ingest/upload`, {
         method: "POST",
+        headers: authHeader(),
         body: form,
         signal,
       });

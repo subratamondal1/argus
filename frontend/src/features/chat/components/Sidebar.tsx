@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/shared/lib/cn";
 
+import { Profile } from "../../auth/Profile";
 import { useChatStore } from "../store";
 
 // Static rail on md+; a slide-in drawer with backdrop on small screens. On
@@ -48,7 +49,7 @@ export function Sidebar({
       >
         <div
           className={cn(
-            "hidden flex-col items-center gap-1 py-3",
+            "hidden flex-1 flex-col items-center gap-1 py-3",
             collapsed ? "md:flex" : "md:hidden",
           )}
         >
@@ -58,6 +59,7 @@ export function Sidebar({
           <RailButton label="New chat" onClick={() => newConversation()}>
             <PenSquare className="h-4 w-4" />
           </RailButton>
+          <Profile collapsed />
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col", collapsed && "md:hidden")}>
@@ -131,6 +133,7 @@ export function Sidebar({
                 </div>
               ))}
           </nav>
+          <Profile collapsed={false} />
         </div>
       </aside>
     </>
