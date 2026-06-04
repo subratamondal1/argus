@@ -28,6 +28,20 @@ async def test_unknown_route_uses_the_envelope() -> None:
     assert response.json()["error"]["code"] == "not_found"
 
 
+async def test_ready_is_503_when_the_database_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_db() -> object:
+        raise ConnectionError("could not connect to postgres")
+
+    monkeypatch.setattr(web, "get_pool", no_db)
+
+    async with _client() as client:
+        response = await client.get("/api/ready")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "not_ready"
+
+
 async def test_ingest_failure_is_a_coded_422(monkeypatch: pytest.MonkeyPatch) -> None:
     async def boom(source: str, *, corpus: str = "default") -> object:
         raise ValueError("no such file")

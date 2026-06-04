@@ -29,9 +29,9 @@ from argus.agent.events import AgentEvent
 from argus.agent.prompts import related_questions_messages
 from argus.builders import build_adaptive, build_llm
 from argus.config import get_settings
-from argus.db import close_pool
+from argus.db import close_pool, get_pool
 from argus.logging import configure_logging, get_logger
-from argus.rag.ingest import ingest_source
+from argus.rag.ingest import IngestResult, ingest_source
 from argus.web.errors import ApiError, install_error_handlers
 from argus.web.middleware import RequestIdMiddleware
 
@@ -111,7 +111,22 @@ def _encode(event: AgentEvent) -> str:
 
 @app.get("/api/health")
 async def health() -> dict[str, str]:
+    # Shallow liveness — stays up through a DB blip so a transient outage doesn't
+    # get the pod killed. Readiness (below) is where the deep check lives.
     return {"status": "ok", "model": get_settings().model}
+
+
+@app.get("/api/ready")
+async def ready() -> dict[str, str]:
+    # Deep readiness: the API can serve real traffic only once Postgres answers.
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as connection:
+            await connection.execute("SELECT 1")
+    except Exception as error:
+        log.warning("not_ready", error=str(error))
+        raise ApiError(code="not_ready", status=503, message="database not reachable") from error
+    return {"status": "ready"}
 
 
 @app.post("/api/ask")
@@ -163,7 +178,7 @@ async def ingest(request: IngestRequest) -> IngestResponse:
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
 
 
-async def _ingest(source: str, *, corpus: str):
+async def _ingest(source: str, *, corpus: str) -> IngestResult:
     # Surface ingest/parse failures as a clean, coded 422 (which carries CORS
     # headers and a readable message) rather than letting them bubble to a bare
     # 500 the browser reports as "can't reach the backend".

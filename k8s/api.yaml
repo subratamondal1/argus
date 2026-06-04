@@ -73,12 +73,14 @@ spec:
             capabilities:
               drop: ["ALL"]
           readinessProbe:
+            # Deep: only route traffic once Postgres answers.
             httpGet:
-              path: /api/health
+              path: /api/ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
+            # Shallow: a DB blip must not kill the pod.
             httpGet:
               path: /api/health
               port: http

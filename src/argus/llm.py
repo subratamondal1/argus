@@ -165,7 +165,9 @@ class LLMClient:
         try:
             cost_usd: float = float(litellm.completion_cost(completion_response=response) or 0.0)
         except Exception as error:
-            log.debug("cost_calc_failed", error=str(error))
+            # Surface it: an uncosted call silently reports $0 and undercounts the
+            # budget, so a model LiteLLM can't price should be visible, not hidden.
+            log.warning("cost_calc_failed", model=self._model, error=str(error))
             cost_usd = 0.0
 
         return LLMResponse(

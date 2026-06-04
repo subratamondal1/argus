@@ -141,7 +141,7 @@ class Settings(BaseSettings):
         description="Max seconds the orchestrator waits on one searcher Job.result().",
     )
 
-    log_level: str = Field(default="INFO")
+    log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 
     @property
