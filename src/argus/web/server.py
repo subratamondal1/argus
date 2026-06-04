@@ -20,7 +20,7 @@ from typing import Annotated
 
 import orjson
 import structlog
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -32,6 +32,7 @@ from argus.config import get_settings
 from argus.db import close_pool
 from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import ingest_source
+from argus.web.errors import ApiError, install_error_handlers
 from argus.web.middleware import RequestIdMiddleware
 
 log = get_logger(__name__)
@@ -82,6 +83,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Request-Id"],
 )
+install_error_handlers(app)
 
 
 class AskRequest(BaseModel):
@@ -162,14 +164,18 @@ async def ingest(request: IngestRequest) -> IngestResponse:
 
 
 async def _ingest(source: str, *, corpus: str):
-    # Surface ingest/parse failures as a clean 422 (which carries CORS headers and
-    # a readable detail) rather than letting them bubble to a bare 500 the browser
-    # reports as "can't reach the backend".
+    # Surface ingest/parse failures as a clean, coded 422 (which carries CORS
+    # headers and a readable message) rather than letting them bubble to a bare
+    # 500 the browser reports as "can't reach the backend".
     try:
         result = await ingest_source(source, corpus=corpus)
     except Exception as error:
         log.warning("api_ingest_failed", source=source, error=str(error))
-        raise HTTPException(status_code=422, detail=f"Couldn't read that source: {error}") from error
+        raise ApiError(
+            code="unprocessable_source",
+            status=422,
+            message=f"Couldn't read that source: {error}",
+        ) from error
     log.info("api_ingest", source=result.source_uri, chunks=result.chunks_written)
     return result
 
