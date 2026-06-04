@@ -6,14 +6,13 @@ import { type RefObject, useEffect, useRef } from "react";
 // 25% of the remaining distance toward the bottom, so the synthesizer's output
 // stays pinned as it prints.
 //
-// Following disengages ONLY on a real user gesture — a wheel-up or a finger
+// Following disengages ONLY on a deliberate user gesture — a wheel-up or a finger
 // dragging the content down to read earlier text — and re-engages once the view
-// is back near the bottom. This is deliberate: on mobile, the browser's address
-// bar showing/hiding (and content reflowing as tokens land) fires `scroll`
-// events whose scrollTop no longer matches what we set. The old heuristic read
-// those as the user scrolling and latched following OFF, freezing the view while
-// the answer kept generating below the fold. Gestures don't fire on resize or on
-// our own scroll, so keying off them is robust.
+// is back near the bottom. Crucially, the `scroll` event NEVER disengages: during
+// fast streaming our own RAF advances scrollTop every frame while scroll events
+// fire late, so any "did the user scroll?" heuristic based on scroll position
+// misfires and freezes the follow. Gestures don't fire on our own scroll or on a
+// mobile address-bar resize, so keying off them is robust.
 //
 // `turnCount` re-engages following whenever a new turn is appended. Combined with
 // the per-turn cushion (the last streaming turn is sized to one viewport), the
@@ -23,8 +22,6 @@ export function useStickToBottom(turnCount: number): RefObject<HTMLDivElement | 
   const follow = useRef(true);
   const touching = useRef(false);
   const touchStartY = useRef(0);
-  const lastTop = useRef(0);
-  const lastHeight = useRef(0);
   const prevCount = useRef(turnCount);
 
   useEffect(() => {
@@ -47,8 +44,8 @@ export function useStickToBottom(turnCount: number): RefObject<HTMLDivElement | 
       touchStartY.current = event.touches[0]?.clientY ?? 0;
     };
     const onTouchMove = (event: TouchEvent): void => {
-      // Finger moving DOWN drags the content down — i.e. the user is scrolling UP
-      // to read earlier output. Stop chasing the bottom.
+      // Finger moving DOWN drags content down — the user is scrolling UP to read
+      // earlier output. Stop chasing the bottom.
       const y: number = event.touches[0]?.clientY ?? 0;
       if (y - touchStartY.current > 10) follow.current = false;
     };
@@ -56,16 +53,9 @@ export function useStickToBottom(turnCount: number): RefObject<HTMLDivElement | 
       touching.current = false;
       if (nearBottom()) follow.current = true;
     };
+    // Re-engage ONLY — never disengage here (see header comment).
     const onScroll = (): void => {
-      // A clientHeight change means the mobile address bar (not the user) drove
-      // this scroll — never disengage on it.
-      const resized: boolean = element.clientHeight !== lastHeight.current;
-      lastHeight.current = element.clientHeight;
-      if (!touching.current) {
-        if (nearBottom()) follow.current = true;
-        else if (!resized && element.scrollTop < lastTop.current - 4) follow.current = false;
-      }
-      lastTop.current = element.scrollTop;
+      if (!touching.current && nearBottom()) follow.current = true;
     };
 
     element.addEventListener("wheel", onWheel, { passive: true });
@@ -82,7 +72,6 @@ export function useStickToBottom(turnCount: number): RefObject<HTMLDivElement | 
         if (target - current.scrollTop > 1) {
           current.scrollTop = current.scrollTop + (target - current.scrollTop) * 0.25;
         }
-        lastTop.current = current.scrollTop;
       }
       frame = requestAnimationFrame(tick);
     };
