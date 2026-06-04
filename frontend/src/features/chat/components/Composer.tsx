@@ -17,9 +17,11 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/lib/cn";
 
@@ -43,6 +45,21 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { ingestUrl, uploadFile, removeSource, clearError, status, error, sources } = useIngest();
+
+  // The preview overlay is position:fixed, but the composer lives inside a
+  // backdrop-blur container — and backdrop-filter (like transform) makes that
+  // container the containing block for fixed children, trapping the overlay in
+  // the input bar and letting the page scroll behind it. While a preview is
+  // open, lock background scroll; the overlay itself is portaled to <body> below
+  // so it escapes the blur context and pins to the real viewport.
+  useEffect(() => {
+    if (!preview?.previewUrl) return;
+    const previous: string = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [preview?.previewUrl]);
 
   // Grow the textarea to fit its content up to ~8 lines (192px = max-h-48),
   // then scroll. Native rows={1} alone would clip multi-line input.
@@ -311,32 +328,34 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         onChange={(event) => onFiles(event.target.files)}
       />
 
-      {preview?.previewUrl && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close preview"
-            onClick={() => setPreview(null)}
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-          />
-          <div className="relative flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-foreground/20 bg-surface shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
-            <div className="flex items-center justify-between gap-3 border-b border-foreground/15 px-4 py-2.5">
-              <span className="truncate font-mono text-[11px] uppercase tracking-widest text-foreground/65">
-                {preview.label}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                aria-label="Close preview"
-                className="rounded p-1 text-foreground/55 transition hover:bg-foreground/10 hover:text-foreground/90"
-              >
-                <X className="h-4 w-4" />
-              </button>
+      {preview?.previewUrl &&
+        createPortal(
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <button
+              type="button"
+              aria-label="Close preview"
+              onClick={() => setPreview(null)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            <div className="relative flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-foreground/20 bg-surface shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between gap-3 border-b border-foreground/15 px-4 py-2.5">
+                <span className="truncate font-mono text-[11px] uppercase tracking-widest text-foreground/65">
+                  {preview.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  aria-label="Close preview"
+                  className="rounded p-1 text-foreground/55 transition hover:bg-foreground/10 hover:text-foreground/90"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <iframe src={preview.previewUrl} title={preview.label} className="flex-1 bg-white" />
             </div>
-            <iframe src={preview.previewUrl} title={preview.label} className="flex-1 bg-white" />
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
