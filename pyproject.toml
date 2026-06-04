@@ -32,6 +32,13 @@ dependencies = [
 # the cross-encoder rerank stage:  uv sync --extra parse --extra rerank
 parse = ["docling>=2.96"]                  # PDF/DOCX/PPTX -> Markdown for ingest
 rerank = ["sentence-transformers>=5.5"]    # bge-reranker-v2-m3 cross-encoder stage
+otel = [
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
+    "opentelemetry-instrumentation-asyncpg>=0.51b0",
+    "opentelemetry-instrumentation-fastapi>=0.51b0",
+    "opentelemetry-instrumentation-httpx>=0.51b0",
+    "opentelemetry-sdk>=1.30",
+]
 
 [project.scripts]
 argus = "argus.cli:main"

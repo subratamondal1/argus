@@ -152,6 +152,15 @@ class Settings(BaseSettings):
         default=60.0, gt=0, description="Rate-limit window length in seconds."
     )
 
+    # --- OpenTelemetry tracing (optional `otel` extra; exports to an OTLP collector) ---
+    otel_enabled: bool = Field(
+        default=False, description="Enable OpenTelemetry tracing (needs the 'otel' extra)."
+    )
+    otel_endpoint: str = Field(
+        default="http://localhost:4318", description="OTLP HTTP endpoint (Jaeger/collector)."
+    )
+    otel_service_name: str = Field(default="argus", description="service.name on emitted spans.")
+
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 

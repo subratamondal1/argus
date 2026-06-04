@@ -31,6 +31,7 @@ from argus.builders import build_adaptive, build_llm
 from argus.config import get_settings
 from argus.db import close_pool, get_pool
 from argus.logging import configure_logging, get_logger
+from argus.observability import setup_tracing
 from argus.rag.ingest import IngestResult, ingest_source
 from argus.web.errors import ApiError, install_error_handlers
 from argus.web.middleware import RequestIdMiddleware
@@ -87,6 +88,7 @@ app.add_middleware(
     expose_headers=["X-Request-Id"],
 )
 install_error_handlers(app)
+setup_tracing(app, get_settings())
 
 
 class AskRequest(BaseModel):

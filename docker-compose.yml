@@ -40,5 +40,16 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # OpenTelemetry trace backend (the `otel` profile). Ingests OTLP on 4318 and
+  # serves the trace UI on http://localhost:16686. Pair with ARGUS_OTEL_ENABLED=true.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: argus-jaeger
+    profiles: ["otel"]
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    restart: unless-stopped
+
 volumes:
   argus-pgdata:
