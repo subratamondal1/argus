@@ -28,7 +28,7 @@ export function Citation({
       target="_blank"
       rel="noreferrer"
       aria-label={`Citation ${source.id} — ${sourceLabel(source)}`}
-      className="group relative inline-block align-baseline no-underline"
+      className="group relative inline-block align-baseline"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onFocus={onEnter}
@@ -36,10 +36,10 @@ export function Citation({
     >
       <sup
         className={cn(
-          "mx-0.5 cursor-pointer select-none font-mono text-[10px] no-underline transition-all duration-150",
+          "mx-0.5 cursor-pointer select-none font-mono text-[10px] transition-all duration-150",
           highlighted
             ? "text-accent [text-shadow:0_0_10px_var(--accent),0_0_4px_var(--accent)]"
-            : "text-accent/85 hover:text-accent hover:[text-shadow:0_0_10px_var(--accent),0_0_4px_var(--accent)]",
+            : "text-accent/85 hover:text-accent",
         )}
       >
         [{source.id}]
