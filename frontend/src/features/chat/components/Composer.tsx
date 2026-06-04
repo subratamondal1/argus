@@ -131,7 +131,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
         // horizontally once they overflow, rather than wrapping and growing taller.
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
           {pending !== null && (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-sm border border-foreground/25 bg-foreground/[0.06] py-1.5 pr-1.5 pl-3 text-[13px] text-foreground/70">
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-none border border-foreground/25 bg-foreground/[0.06] py-1.5 pr-1.5 pl-3 text-[13px] text-foreground/70">
               <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-foreground/55" />
               <span className="max-w-[200px] truncate">Reading {pending}…</span>
               <button
@@ -151,7 +151,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
               <span
                 key={source.label}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-sm border py-1.5 pr-1.5 pl-3 text-[13px]",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-none border py-1.5 pr-1.5 pl-3 text-[13px]",
                   empty
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                     : "border-accent/30 bg-accent/10 text-foreground/80",
@@ -192,7 +192,7 @@ export function Composer({ onSubmit, onCancel, busy }: Props) {
             <button
               type="button"
               onClick={clearError}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] text-red-500 transition hover:bg-red-500/20"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-none border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] text-red-500 transition hover:bg-red-500/20"
               title="Dismiss"
             >
               {error}
