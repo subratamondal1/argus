@@ -13,6 +13,7 @@ from argus.agent.orchestrator import Orchestrator
 from argus.agent.prompts import direct_system_prompt
 from argus.config import Settings, get_settings
 from argus.llm import LLMClient
+from argus.tools.execute_python import register_execute_python
 from argus.tools.rag_search import register_rag_search
 from argus.tools.registry import ToolRegistry
 from argus.tools.web_fetch import register_web_fetch
@@ -21,10 +22,13 @@ from argus.tools.web_search import register_web_search
 
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
+    settings = get_settings()
     register_web_search(registry)
     register_web_fetch(registry)
-    if get_settings().rag_enabled:
+    if settings.rag_enabled:
         register_rag_search(registry)
+    if settings.exec_python_enabled:
+        register_execute_python(registry)
     return registry
 
 

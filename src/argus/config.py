@@ -88,6 +88,37 @@ class Settings(BaseSettings):
         default=False, description="Enable the cross-encoder rerank stage."
     )
 
+    # --- execute_python sandbox (subprocess + rlimits; see tools/execute_python.py) ---
+    exec_python_enabled: bool = Field(
+        default=True, description="Register the sandboxed execute_python tool."
+    )
+    exec_timeout_s: float = Field(
+        default=5.0,
+        gt=0,
+        description="Wall-clock seconds before the snippet's process group is killed.",
+    )
+    exec_cpu_seconds: int = Field(
+        default=5, gt=0, description="RLIMIT_CPU ceiling (CPU-seconds) for the snippet process."
+    )
+    exec_memory_mb: int = Field(
+        default=256,
+        gt=0,
+        description="RLIMIT_AS ceiling in MiB (Linux only; not enforced on macOS dev boxes).",
+    )
+    exec_file_size_mb: int = Field(
+        default=10, gt=0, description="RLIMIT_FSIZE ceiling in MiB for files the snippet writes."
+    )
+    exec_max_processes: int = Field(
+        default=16,
+        gt=0,
+        description="Fork headroom over the host's current per-UID process count (RLIMIT_NPROC).",
+    )
+    exec_max_output_chars: int = Field(
+        default=10_000,
+        gt=0,
+        description="Per-stream cap on captured stdout/stderr returned to the model.",
+    )
+
     log_level: str = Field(default="INFO")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 
