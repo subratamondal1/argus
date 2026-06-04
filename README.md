@@ -5,8 +5,8 @@
 You ask a hard question. A **planner** decomposes it into sub-questions; a fleet of
 **lightweight searcher agents** — each a hand-written agent loop — scales up *from zero* as
 Kubernetes pods, searches the live web in parallel, and a **synthesizer** fuses their findings
-into a cited report. Every LLM call is traced, cost-attributed, and gated by an eval suite that
-blocks bad merges in CI.
+into a cited report. Every LLM call is cost-attributed and structured-logged, and gated by an
+eval suite that blocks bad merges in CI.
 
 Argus is built to prove four things a single-agent app can't: **true horizontal scale** (KEDA
 queue-depth autoscaling of lightweight agent pods), **multi-agent orchestration**, **sandboxed
@@ -111,9 +111,10 @@ make eval-calibrate                   # prove the judge agrees with humans (Cohe
   against each question's relevant sources. Implemented in-repo
   ([`eval/metrics.py`](src/argus/eval/metrics.py)), not via RAGAS, to stay
   dependency-light and offline-capable.
-- **LLM judge** — a second model (run at temperature 0 so the gate doesn't flap)
-  rules each answer correct-and-grounded, separate from a normalized keyword
-  grounding check. `make eval-calibrate` runs the judge over a human-labelled set
+- **LLM judge** — an independent judge model (set `ARGUS_JUDGE_MODEL` to a different
+  provider; defaults to the subject model at temperature 0, trusted only via the κ
+  calibration below) rules each answer correct-and-grounded, separate from a
+  normalized keyword grounding check. `make eval-calibrate` runs the judge over a human-labelled set
   ([`eval/judge_calibration.jsonl`](eval/judge_calibration.jsonl)) and reports
   **Cohen's κ** — chance-corrected agreement, so a rubber-stamp judge is exposed
   (its κ collapses) — failing below the κ floor.

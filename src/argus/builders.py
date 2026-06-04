@@ -37,12 +37,15 @@ def build_budget(settings: Settings) -> Budget:
     )
 
 
-def build_llm(settings: Settings, *, model: str | None = None) -> LLMClient:
+def build_llm(
+    settings: Settings, *, model: str | None = None, temperature: float | None = None
+) -> LLMClient:
     # One place wires retries + the fallback chain, so every LLM call inherits the
     # same reliability policy.
     return LLMClient(
         model=model or settings.model,
         timeout_s=settings.request_timeout_s,
+        temperature=temperature,
         num_retries=settings.num_retries,
         fallbacks=settings.fallback_models,
     )

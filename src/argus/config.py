@@ -31,7 +31,15 @@ class Settings(BaseSettings):
     num_retries: int = Field(
         default=2, ge=0, description="LiteLLM retries on transient failures before falling back."
     )
-    request_timeout_s: float = Field(default=30.0, gt=0)
+    judge_model: str | None = Field(
+        default=None,
+        description=(
+            "Independent model for the eval LLM-judge. Set ARGUS_JUDGE_MODEL to a DIFFERENT "
+            "provider/model than `model` to avoid self-grading bias; defaults to `model` at "
+            "temperature 0, in which case the judge is trusted only via Cohen's-κ calibration."
+        ),
+    )
+    request_timeout_s: float = Field(default=30.0, gt=0, description="Per-LLM-call timeout.")
     searxng_host: str = Field(default="localhost", description="Host where SearXNG is reachable.")
     searxng_port: int = Field(
         default=8080, gt=0, le=65535, description="Host port SearXNG is published on."

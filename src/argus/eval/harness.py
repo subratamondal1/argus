@@ -17,13 +17,13 @@ import orjson
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop
 from argus.agent.prompts import research_system_prompt
+from argus.builders import build_llm
 from argus.config import get_settings
 from argus.db import close_pool
 from argus.eval.calibration import CalibrationResult, calibrate
 from argus.eval.dataset import load_calibration, load_golden, load_thresholds
 from argus.eval.judge import Verdict, judge_answer
 from argus.eval.runner import EvalReport, evaluate
-from argus.llm import LLMClient
 from argus.logging import get_logger
 from argus.rag.ingest import ingest_source
 from argus.rag.retriever import RetrievedChunk, retrieve
@@ -43,10 +43,8 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
     golden = load_golden(golden_path)
     thresholds = load_thresholds(thresholds_path)
 
-    llm = LLMClient(model=settings.model, timeout_s=settings.request_timeout_s)
-    judge_llm = LLMClient(
-        model=settings.model, timeout_s=settings.request_timeout_s, temperature=0.0
-    )
+    llm = build_llm(settings)
+    judge_llm = build_llm(settings, model=settings.judge_model, temperature=0.0)
     registry = ToolRegistry()
     register_web_search(registry)
     register_web_fetch(registry)
@@ -90,9 +88,7 @@ async def run_calibration(calibration_path: Path, thresholds_path: Path) -> Cali
     settings = get_settings()
     items = load_calibration(calibration_path)
     thresholds = load_thresholds(thresholds_path)
-    judge_llm = LLMClient(
-        model=settings.model, timeout_s=settings.request_timeout_s, temperature=0.0
-    )
+    judge_llm = build_llm(settings, model=settings.judge_model, temperature=0.0)
 
     async def _judge(question: str, answer: str, context: str) -> Verdict:
         return await judge_answer(judge_llm, question=question, answer=answer, context=context)
