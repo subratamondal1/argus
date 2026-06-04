@@ -119,6 +119,28 @@ class Settings(BaseSettings):
         description="Per-stream cap on captured stdout/stderr returned to the model.",
     )
 
+    # --- Searcher work queue (ARQ-on-Redis; optional, KEDA-autoscalable) ---
+    use_queue: bool = Field(
+        default=False,
+        description=(
+            "Fan searchers out as ARQ jobs on Redis (separate worker processes KEDA can "
+            "autoscale) instead of in-process asyncio.gather. Set ARGUS_USE_QUEUE=true once "
+            "a worker + Redis are running."
+        ),
+    )
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis DSN for the ARQ searcher queue (redis.asyncio under arq).",
+    )
+    queue_max_jobs: int = Field(
+        default=10, gt=0, description="Concurrent jobs per ARQ worker process."
+    )
+    queue_result_timeout_s: float = Field(
+        default=200.0,
+        gt=0,
+        description="Max seconds the orchestrator waits on one searcher Job.result().",
+    )
+
     log_level: str = Field(default="INFO")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 

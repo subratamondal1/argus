@@ -72,6 +72,8 @@ def build_orchestrator(ingested_sources: list[str] | None = None) -> Orchestrato
         registry=build_registry(),
         searcher_budget=build_budget(settings),
         ingested_sources=list(ingested_sources or []),
+        use_queue=settings.use_queue,
+        result_timeout_s=settings.queue_result_timeout_s,
     )
 
 

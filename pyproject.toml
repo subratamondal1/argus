@@ -23,6 +23,7 @@ dependencies = [
     "sse-starlette>=2.1",  # Server-Sent Events for streaming agent progress
     "python-multipart>=0.0.12", # multipart file upload for /api/ingest/upload
     "pypdf>=5.0",
+    "arq>=0.28,<0.29",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +47,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "respx>=0.22",         # httpx mocking for the search-tool test
-    "pre-commit>=4.0",     # local gitleaks + ruff hooks (CI also scans secrets)
+    "pre-commit>=4.0",
 ]
 
 [build-system]
