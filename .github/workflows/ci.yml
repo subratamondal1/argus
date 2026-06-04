@@ -1,7 +1,7 @@
 name: CI
 
-# Green from commit 1. Lint + type-check + tests run on every push and PR.
-# The eval-regression gate (Phase 3) and the kind-in-CI manifest smoke test
+# Green from commit 1. Secret scan + lint + type-check + tests on every push and
+# PR. The eval-regression gate (Phase 3) and the kind-in-CI manifest smoke test
 # (Phase 4) get added to this same workflow as the project grows.
 
 on:
@@ -15,6 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for committed secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   quality:
     runs-on: ubuntu-latest
     steps:

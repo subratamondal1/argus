@@ -46,6 +46,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "respx>=0.22",         # httpx mocking for the search-tool test
+    "pre-commit>=4.0",     # local gitleaks + ruff hooks (CI also scans secrets)
 ]
 
 [build-system]
