@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, PenSquare } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Composer } from "./components/Composer";
 import { Sidebar } from "./components/Sidebar";
@@ -25,7 +25,20 @@ export function ChatPage() {
   const newConversation = useChatStore((state) => state.newConversation);
   const turns = conversation?.turns ?? [];
   const streaming = turns.some((turn) => turn.status === "streaming");
-  const scrollRef = useStickToBottom();
+  const scrollRef = useStickToBottom(turns.length);
+  const [viewport, setViewport] = useState(0);
+
+  // Track the scroll viewport height so the active turn can be cushioned to fill
+  // it — that is what lets a freshly-sent question glide to the top of the view.
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element === null) return;
+    const update = (): void => setViewport(element.clientHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scrollRef]);
 
   return (
     <div className="flex h-dvh bg-background text-foreground">
@@ -57,8 +70,15 @@ export function ChatPage() {
               <Hero onPick={(question) => ask(question, false)} />
             ) : (
               <div className="py-6">
-                {turns.map((turn) => (
-                  <Turn key={turn.id} turn={turn} onFollowUp={(question) => ask(question, false)} />
+                {turns.map((turn, index) => (
+                  <Turn
+                    key={turn.id}
+                    turn={turn}
+                    onFollowUp={(question) => ask(question, false)}
+                    cushion={
+                      index === turns.length - 1 && turn.status === "streaming" ? viewport : 0
+                    }
+                  />
                 ))}
               </div>
             )}

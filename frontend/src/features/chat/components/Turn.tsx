@@ -16,9 +16,11 @@ import { Steps } from "./Steps";
 export function Turn({
   turn,
   onFollowUp,
+  cushion = 0,
 }: {
   turn: TurnModel;
   onFollowUp: (question: string) => void;
+  cushion?: number;
 }) {
   const streaming = turn.status === "streaming";
   const [highlighted, setHighlighted] = useState<number | null>(null);
@@ -36,7 +38,10 @@ export function Turn({
   const eyebrow = isResearch ? "Deep research" : known ? "Direct answer" : "Working";
 
   return (
-    <article className="border-b border-foreground/10 py-8 first:pt-2 last:border-0">
+    <article
+      className="border-b border-foreground/10 py-8 first:pt-2 last:border-0"
+      style={cushion > 0 ? { minHeight: cushion } : undefined}
+    >
       <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
         {eyebrow}
       </p>
