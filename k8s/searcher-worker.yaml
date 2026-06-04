@@ -1,0 +1,188 @@
+# Argus searcher worker — the ARQ-on-Redis searcher fan-out as KEDA-autoscaled pods.
+#
+# The API (k8s/api.yaml, ARGUS_USE_QUEUE=true) enqueues one arq job per
+# sub-question and awaits each result. These worker pods run `arq
+# argus.worker.WorkerSettings`, each consuming jobs and running one AgentLoop
+# (web_search / web_fetch / rag_search + 3-axis budget) per job.
+#
+# KEDA scales this Deployment 0..N..0 by the LLEN of the plain Redis LIST
+# `argus:searcher:scale` (argus.worker.SCALE_LIST). WHY a side list and not arq's
+# own queue: arq stores its queue as a Redis SORTED SET, and KEDA's `redis` scaler
+# measures depth with LLEN, which raises WRONGTYPE on a zset. The producer LPUSHes
+# a marker per enqueue and the worker LREMs it on pickup, so LLEN of this list
+# tracks the pending backlog without touching arq's at-least-once bookkeeping.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argus
+---
+# Non-secret runtime config shared by the worker and the API. Keys match the
+# ARGUS_-prefixed pydantic Settings fields exactly. Secrets live in the Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argus-config
+  namespace: argus
+data:
+  ARGUS_MODEL: "anthropic/claude-sonnet-4-6"
+  ARGUS_REQUEST_TIMEOUT_S: "30.0"
+  ARGUS_MAX_TURNS: "8"
+  ARGUS_MAX_TOKENS: "120000"
+  ARGUS_MAX_WALLCLOCK_S: "180.0"
+  ARGUS_MAX_COST_USD: "0.50"
+  ARGUS_LOG_LEVEL: "INFO"
+  ARGUS_LOG_JSON: "true"
+  # SearXNG runs in-cluster (its own Deployment+Service, not shown here).
+  ARGUS_SEARXNG_HOST: "searxng.argus.svc.cluster.local"
+  ARGUS_SEARXNG_PORT: "8080"
+---
+# Placeholder secrets. In a real cluster populate these from a SealedSecret /
+# External Secrets Operator / Azure Key Vault CSI driver — never commit real
+# values. ARGUS_REDIS_URL carries the password inline (the app's redis.asyncio
+# client takes a DSN); REDIS_PASSWORD is the same password as a bare value for
+# KEDA's TriggerAuthentication, which cannot parse a DSN.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argus-secrets
+  namespace: argus
+type: Opaque
+stringData:
+  ANTHROPIC_API_KEY: "REPLACE_ME"
+  ARGUS_DATABASE_URL: "postgresql://argus:REPLACE_ME@postgres.example.internal:5432/argus"
+  ARGUS_REDIS_URL: "redis://:REPLACE_ME@redis.argus.svc.cluster.local:6379/0"
+  REDIS_PASSWORD: "REPLACE_ME"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-searcher
+  namespace: argus
+  labels:
+    app.kubernetes.io/name: argus
+    app.kubernetes.io/component: searcher
+spec:
+  # KEDA owns the replica count at runtime; this is only the value applied while
+  # the ScaledObject is absent. Ship 0 so a `kubectl apply` never fights KEDA.
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus
+      app.kubernetes.io/component: searcher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus
+        app.kubernetes.io/component: searcher
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: searcher
+          image: ghcr.io/subratamondal1/argus:0.0.1
+          imagePullPolicy: IfNotPresent
+          command: ["arq", "argus.worker.WorkerSettings"]
+          envFrom:
+            - configMapRef:
+                name: argus-config
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: ARGUS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ARGUS_DATABASE_URL
+            - name: ARGUS_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ARGUS_REDIS_URL
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # arq has no HTTP surface; `arq ... --check` exits 0 when the worker's
+          # health-check key in Redis is fresh (health_check_interval=30s).
+          livenessProbe:
+            exec:
+              command: ["arq", "argus.worker.WorkerSettings", "--check"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+          # /tmp is writable (execute_python's sandbox + uploads use tempfile);
+          # the rest of the root filesystem stays read-only.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      # >= ARGUS_MAX_WALLCLOCK_S so an in-flight searcher finishes on scale-in /
+      # rollout instead of being SIGKILLed mid-job.
+      terminationGracePeriodSeconds: 200
+---
+# KEDA pulls the Redis password from the same Secret the app uses, then scales the
+# searcher Deployment by LLEN of the backlog list.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: argus-redis-auth
+  namespace: argus
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: argus-secrets
+      key: REDIS_PASSWORD
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: argus-searcher-scaler
+  namespace: argus
+spec:
+  scaleTargetRef:
+    name: argus-searcher
+  pollingInterval: 5
+  cooldownPeriod: 120
+  minReplicaCount: 0
+  maxReplicaCount: 20
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 120
+  triggers:
+    - type: redis
+      metadata:
+        # The KEDA operator resolves this from ITS OWN pod, so it must be the
+        # in-cluster service DNS, never localhost.
+        address: redis.argus.svc.cluster.local:6379
+        # MUST equal argus.worker.SCALE_LIST (the list the producer LPUSHes to).
+        listName: "argus:searcher:scale"
+        # HPA target = ceil(LLEN / listLength); listLength 5 + maxReplica 20
+        # saturates at a 100-deep backlog.
+        listLength: "5"
+        # Scale 0 -> 1 the moment backlog exceeds this (default 0 = any item).
+        activationListLength: "1"
+        databaseIndex: "0"
+        enableTLS: "false"
+      authenticationRef:
+        name: argus-redis-auth

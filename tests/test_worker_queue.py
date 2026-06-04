@@ -43,8 +43,9 @@ def _budget() -> Budget:
 
 
 class _FakeJob:
-    def __init__(self, payload: dict[str, Any]) -> None:
+    def __init__(self, payload: dict[str, Any], job_id: str) -> None:
         self._payload = payload
+        self.job_id = job_id
 
     async def result(self, timeout: float | None = None) -> dict[str, Any]:  # noqa: ASYNC109 — mirrors arq Job.result(timeout=...)
         return self._payload
@@ -55,13 +56,15 @@ class _FakePool:
 
     def __init__(self) -> None:
         self.captured: list[dict[str, Any]] = []
+        self.scale_pushes: list[Any] = []
 
     async def enqueue_job(self, function: str, *args: Any, **kwargs: Any) -> _FakeJob:
         from argus.worker import search_subquestion
 
         self.captured.append({"function": function, "args": args, "kwargs": dict(kwargs)})
+        job_id: str = kwargs.get("_job_id", "fake")
         ctx: dict[str, Any] = {
-            "job_id": kwargs.get("_job_id", "fake"),
+            "job_id": job_id,
             "registry": ToolRegistry(),
             "llm": FakeResearchLLM(),
             "budget": _budget(),
@@ -73,7 +76,10 @@ class _FakePool:
             _request_id=kwargs.get("_request_id", ""),
             _run_id=kwargs.get("_run_id", ""),
         )
-        return _FakeJob(payload)
+        return _FakeJob(payload, job_id)
+
+    async def lpush(self, key: str, *values: Any) -> None:
+        self.scale_pushes.extend(values)
 
 
 async def test_queued_orchestrator_enqueues_and_awaits_results() -> None:
@@ -92,6 +98,7 @@ async def test_queued_orchestrator_enqueues_and_awaits_results() -> None:
     assert len(pool.captured) == 2
     job_ids = {capture["kwargs"]["_job_id"] for capture in pool.captured}
     assert len(job_ids) == 2  # one job per sub-question, each with a unique id
+    assert len(pool.scale_pushes) == 2  # one KEDA backlog marker LPUSHed per job
 
 
 async def test_queued_orchestrator_propagates_request_and_run_id() -> None:

@@ -1,0 +1,111 @@
+# Argus API — `argus serve` (uvicorn on argus.web.server:app). Always-on, fronts
+# the SSE stream and, with ARGUS_USE_QUEUE=true, enqueues searcher sub-questions
+# onto the ARQ queue the KEDA-scaled workers drain. Reuses the same ConfigMap +
+# Secret as the worker (k8s/searcher-worker.yaml) so Redis creds + DSNs agree.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-api
+  namespace: argus
+  labels:
+    app.kubernetes.io/name: argus
+    app.kubernetes.io/component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/subratamondal1/argus:0.0.1
+          imagePullPolicy: IfNotPresent
+          command: ["argus", "serve", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: argus-config
+          env:
+            # Fan searchers out onto the queue the worker Deployment drains.
+            - name: ARGUS_USE_QUEUE
+              value: "true"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: ARGUS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ARGUS_DATABASE_URL
+            - name: ARGUS_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-secrets
+                  key: ARGUS_REDIS_URL
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          # tempfile-backed uploads + execute_python sandbox need a writable /tmp.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argus-api
+  namespace: argus
+  labels:
+    app.kubernetes.io/name: argus
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: argus
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -196,6 +196,11 @@ class Orchestrator:
         )
         if job is None:
             raise RuntimeError("failed to enqueue searcher job (duplicate job id)")
+        # Mirror the enqueue onto the plain LIST KEDA scales on (arq's own queue is
+        # a zset KEDA can't LLEN); the worker removes the marker when it starts.
+        from argus.worker import SCALE_LIST
+
+        await pool.lpush(SCALE_LIST, job.job_id)
         payload: dict[str, Any] = await job.result(timeout=self.result_timeout_s)
         await emit(on_event, "search_done", sub_question=sub_question)
         return Finding(

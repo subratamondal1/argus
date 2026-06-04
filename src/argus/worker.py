@@ -36,6 +36,14 @@ log = get_logger(__name__)
 # producer/worker queue-name mismatch is the single most common silent ARQ bug.
 QUEUE_NAME: str = "arq:queue:searchers"
 
+# arq stores its queue as a Redis SORTED SET, but KEDA's redis scaler measures
+# depth with LLEN (lists only) — LLEN on a zset raises WRONGTYPE. So the producer
+# also LPUSHes a marker per enqueued job onto this plain LIST, and a worker LREMs
+# its marker when it picks the job up. KEDA scales on LLEN of this list: a
+# best-effort backlog signal (a leaked marker only keeps one extra pod briefly),
+# decoupled from arq's own at-least-once correctness.
+SCALE_LIST: str = "argus:searcher:scale"
+
 
 def redis_settings(settings: Settings | None = None) -> RedisSettings:
     resolved: Settings = settings or get_settings()
@@ -55,7 +63,13 @@ async def search_subquestion(
     # be untraceable back to the originating request/run.
     structlog.contextvars.bind_contextvars(request_id=_request_id, run_id=_run_id)
     try:
-        log.info("search_job_start", sub_question=sub_question, job_id=ctx.get("job_id"))
+        # This job is now being processed, so drop its KEDA backlog marker. arq
+        # supplies ctx['redis']; guard it so the unit tests (no redis in ctx) skip.
+        redis: Any = ctx.get("redis")
+        job_id: Any = ctx.get("job_id")
+        if redis is not None and job_id is not None:
+            await redis.lrem(SCALE_LIST, 0, job_id)
+        log.info("search_job_start", sub_question=sub_question, job_id=job_id)
         loop: AgentLoop = AgentLoop(
             registry=ctx["registry"],
             llm=ctx["llm"],
@@ -111,6 +125,9 @@ class WorkerSettings:
     job_timeout: int = int(get_settings().max_wallclock_s) + 30
     # Results must outlive the orchestrator's await through a slow synthesize round.
     keep_result: int = 900
+    # Refresh the arq health-check key often enough that `arq ... --check` (the
+    # pod liveness probe) reflects a live worker within a probe period.
+    health_check_interval: int = 30
     # Searchers are idempotent reads (web_search/web_fetch/rag_search have no side
     # effects), so a retry after a transient worker crash is safe.
     retry_jobs: bool = True
