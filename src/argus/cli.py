@@ -213,6 +213,9 @@ def main() -> None:
     load_dotenv()
     settings = get_settings()
     configure_logging(level=settings.log_level, json=settings.log_json)
+    from argus.observability import setup_langfuse
+
+    setup_langfuse(settings)
     try:
         code: int = _dispatch(sys.argv[1:])
     except RuntimeError as error:

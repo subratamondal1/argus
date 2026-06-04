@@ -47,3 +47,16 @@ def setup_tracing(app: FastAPI, settings: Settings) -> None:
         endpoint=settings.otel_endpoint,
         service=settings.otel_service_name,
     )
+
+
+def setup_langfuse(settings: Settings) -> None:
+    if not settings.langfuse_enabled:
+        return
+    import litellm
+
+    # LiteLLM's langfuse_otel callback ships a trace per LLM call (prompt, model,
+    # tokens, cost, latency) to Langfuse; the public/secret key + host come from the
+    # LANGFUSE_* env, the same way provider keys do. Idempotent if already present.
+    if "langfuse_otel" not in litellm.callbacks:
+        litellm.callbacks = [*litellm.callbacks, "langfuse_otel"]
+    log.info("langfuse_enabled")

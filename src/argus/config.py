@@ -161,6 +161,12 @@ class Settings(BaseSettings):
     )
     otel_service_name: str = Field(default="argus", description="service.name on emitted spans.")
 
+    # --- Langfuse LLM tracing (LLMOps) — keys/host via LANGFUSE_* env (LiteLLM reads them) ---
+    langfuse_enabled: bool = Field(
+        default=False,
+        description="Route every LiteLLM call to Langfuse (set LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST).",
+    )
+
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 
