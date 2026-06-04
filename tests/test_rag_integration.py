@@ -21,6 +21,21 @@ pytestmark = pytest.mark.integration
 _CORPUS: str = "argus-itest"
 
 
+@pytest.fixture(autouse=True)
+async def _require_ollama() -> None:
+    # This round-trip embeds via Ollama; skip (don't fail) where it isn't running
+    # — e.g. the Postgres+Redis-only CI integration job, or a dev box sans Ollama.
+    import httpx
+
+    from argus.config import get_settings
+
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.get(get_settings().ollama_base_url)
+    except Exception:
+        pytest.skip("Ollama not reachable")
+
+
 async def _purge() -> None:
     pool = await get_pool()
     async with pool.acquire() as connection:

@@ -52,6 +52,51 @@ jobs:
       - name: Tests (pytest)
         run: uv run pytest
 
+  integration:
+    name: integration tests (Postgres + Redis)
+    needs: quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: argus
+          POSTGRES_PASSWORD: argus
+          POSTGRES_DB: argus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U argus -d argus"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      # No LLM here — these tests use fakes for the model and skip the Ollama-only
+      # RAG round-trip; they exercise the DB schema + ARQ-on-Redis paths for real.
+      ARGUS_DATABASE_URL: postgresql://argus:argus@localhost:5432/argus
+      ARGUS_REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Apply migrations
+        run: uv run argus migrate
+
+      - name: Integration tests
+        run: uv run pytest -m integration
+
   k8s-smoke:
     name: k8s + KEDA autoscaling smoke (kind)
     needs: quality
