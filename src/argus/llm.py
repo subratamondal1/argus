@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
@@ -132,15 +133,24 @@ class LLMClient:
             stream_options={"include_usage": True},
             **self._sampling_kwargs(),
         )
-        async for chunk in stream:
-            chunks.append(chunk)
-            choices: Any = getattr(chunk, "choices", None)
-            if not choices:
-                continue
-            delta: str | None = getattr(choices[0].delta, "content", None)
-            if delta:
-                await on_token(delta)
-        return litellm.stream_chunk_builder(chunks, messages=messages)
+        try:
+            async for chunk in stream:
+                chunks.append(chunk)
+                choices: Any = getattr(chunk, "choices", None)
+                if not choices:
+                    continue
+                delta: str | None = getattr(choices[0].delta, "content", None)
+                if delta:
+                    await on_token(delta)
+            return litellm.stream_chunk_builder(chunks, messages=messages)
+        finally:
+            # If the client disconnected, the run task is cancelled here — tear the
+            # upstream LLM stream down so it stops generating (and billing) instead
+            # of running on until the budget/timeout fires.
+            aclose = getattr(stream, "aclose", None)
+            if aclose is not None:
+                with contextlib.suppress(Exception):
+                    await aclose()
 
     def _normalize(self, response: Any) -> LLMResponse:
         message: Any = response.choices[0].message

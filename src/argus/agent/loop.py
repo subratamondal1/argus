@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -61,6 +62,15 @@ def _parse_arguments(raw: str) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
+# Stop the loop when the SAME (tool, args) call is issued this many times — a
+# planner stuck on web_search('same query') otherwise burns the whole budget.
+_CYCLE_LIMIT: int = 3
+
+
+def _call_signature(name: str, args: dict[str, Any]) -> str:
+    return orjson.dumps({"n": name, "a": args}, option=orjson.OPT_SORT_KEYS).decode()
+
+
 class AgentLoop:
     def __init__(
         self,
@@ -93,6 +103,7 @@ class AgentLoop:
         answer: str = ""
         stop_reason: str = "completed"
         collected: list[Source] = []
+        seen_calls: Counter[str] = Counter()
 
         token_sink: TokenSink | None = None
         if stream_tokens and on_event is not None:
@@ -152,9 +163,12 @@ class AgentLoop:
                     }
                 )
 
+                cycling: bool = False
                 for call in response.tool_calls:
+                    parsed: dict[str, Any] = _parse_arguments(call.arguments)
+                    seen_calls[_call_signature(call.name, parsed)] += 1
                     result: ToolResult = await self._registry.dispatch(
-                        ToolCall(name=call.name, arguments=_parse_arguments(call.arguments)),
+                        ToolCall(name=call.name, arguments=parsed),
                         approver=self._approver,
                     )
                     collected.extend(sources_from_result(result))
@@ -165,6 +179,14 @@ class AgentLoop:
                             "content": _result_to_text(result),
                         }
                     )
+                    if seen_calls[_call_signature(call.name, parsed)] >= _CYCLE_LIMIT:
+                        cycling = True
+
+                if cycling:
+                    stop_reason = "cycle"
+                    answer = answer or "[stopped: repeated the same tool call — likely a loop]"
+                    log.warning("agent_cycle", turns=state.turns)
+                    break
 
         return AgentResult(
             answer=answer,

@@ -95,3 +95,19 @@ async def test_loop_stops_on_turn_budget() -> None:
 
     assert result.stop_reason == "max_turns"
     assert result.turns == 2
+
+
+async def test_loop_stops_on_cycle() -> None:
+    # Same (echo, {text: hi}) call every turn — should trip the cycle guard at the
+    # 3rd repeat, well before the generous turn budget.
+    llm = FakeLLM([_tool_turn() for _ in range(10)])
+    loop = AgentLoop(
+        registry=_registry_with_echo(),
+        llm=llm,
+        budget=_generous_budget(max_turns=10),
+        system_prompt="sys",
+    )
+    result = await loop.run("question")
+
+    assert result.stop_reason == "cycle"
+    assert result.turns == 3
