@@ -141,6 +141,17 @@ class Settings(BaseSettings):
         description="Max seconds the orchestrator waits on one searcher Job.result().",
     )
 
+    # --- API rate limiting (Redis sliding-window; shared across API replicas) ---
+    rate_limit_enabled: bool = Field(
+        default=False, description="Enable the per-client Redis sliding-window rate limiter."
+    )
+    rate_limit_requests: int = Field(
+        default=60, gt=0, description="Allowed requests per client per window."
+    )
+    rate_limit_window_s: float = Field(
+        default=60.0, gt=0, description="Rate-limit window length in seconds."
+    )
+
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 

@@ -34,6 +34,7 @@ from argus.logging import configure_logging, get_logger
 from argus.rag.ingest import IngestResult, ingest_source
 from argus.web.errors import ApiError, install_error_handlers
 from argus.web.middleware import RequestIdMiddleware
+from argus.web.ratelimit import RateLimitMiddleware
 
 log = get_logger(__name__)
 
@@ -73,8 +74,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Argus", version="0.0.1", lifespan=_lifespan)
-# Order matters: add request-id first so it sits INSIDE CORS (the last add is the
-# outermost), keeping CORS headers on every response including errors.
+# Order matters (the last add is the OUTERMOST). Final stack, outer→inner:
+# CORS → request-id → rate-limit → app — so a 429 still carries a request_id and
+# CORS headers, and the limiter never runs before the id is bound.
+app.add_middleware(RateLimitMiddleware, settings=get_settings())
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
