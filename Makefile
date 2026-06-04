@@ -17,6 +17,9 @@ research:
 	@test -n "$(Q)" || { echo 'usage: make research Q="your question"'; exit 1; }
 	uv run argus --deep "$(Q)"
 
+migrate:
+	uv run argus migrate
+
 eval:
 	uv run argus eval
 

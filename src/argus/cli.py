@@ -153,11 +153,28 @@ def _main_serve(argv: list[str]) -> int:
     return 0
 
 
+def _main_migrate(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="argus migrate", description="Apply pending SQL migrations to Postgres."
+    )
+    parser.parse_args(argv)
+    from argus.migrate import run_migrations
+
+    applied: list[str] = asyncio.run(run_migrations())
+    if applied:
+        sys.stdout.write("Applied: " + ", ".join(applied) + "\n")
+    else:
+        sys.stdout.write("Database already up to date.\n")
+    return 0
+
+
 def _dispatch(argv: list[str]) -> int:
     if argv and argv[0] == "ingest":
         return _main_ingest(argv[1:])
     if argv and argv[0] == "eval":
         return _main_eval(argv[1:])
+    if argv and argv[0] == "migrate":
+        return _main_migrate(argv[1:])
     if argv and argv[0] == "serve":
         return _main_serve(argv[1:])
     return _main_ask(argv)

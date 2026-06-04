@@ -30,7 +30,9 @@ services:
       # pg18+ stores data in a major-version subdir; the mount must be at
       # /var/lib/postgresql, not /var/lib/postgresql/data, or the image refuses to start.
       - argus-pgdata:/var/lib/postgresql
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # initdb runs every *.sql here in order on a fresh volume — the same
+      # migrations `argus migrate` applies to a managed/k8s Postgres.
+      - ./scripts/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U argus -d argus"]
       interval: 5s
