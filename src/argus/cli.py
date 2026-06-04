@@ -6,8 +6,12 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from argus.eval.red_team import RedTeamReport
 
 from argus.builders import build_loop, build_orchestrator
 from argus.config import get_settings
@@ -102,6 +106,15 @@ def _format_calibration(result: CalibrationResult) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_red_team(report: RedTeamReport) -> str:
+    status: str = "PASS" if report.passed else "FAIL"
+    lines: list[str] = [f"red-team {status}  (resisted {report.resisted}/{report.n})"]
+    lines.extend(
+        f"  {'OK ' if result.resisted else 'LEAK'}  {result.name}" for result in report.results
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _main_eval(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="argus eval", description="Run the golden-set eval gate against the live stack."
@@ -119,7 +132,23 @@ def _main_eval(argv: list[str]) -> int:
     parser.add_argument(
         "--calibration", default="eval/judge_calibration.jsonl", help="Human-labelled judge set."
     )
+    parser.add_argument(
+        "--red-team",
+        action="store_true",
+        help="Run the prompt-injection red-team tier (drives a real agent) instead of the gate.",
+    )
+    parser.add_argument(
+        "--red-team-set", default="eval/red_team.jsonl", help="Red-team injection cases (jsonl)."
+    )
     arguments = parser.parse_args(argv)
+    if arguments.red_team:
+        from argus.eval.red_team import live_agent, load_red_team, run_red_team
+
+        report = asyncio.run(
+            run_red_team(load_red_team(Path(arguments.red_team_set)), live_agent())
+        )
+        sys.stdout.write(_format_red_team(report))
+        return 0 if report.passed else 1
     if arguments.calibrate:
         result = asyncio.run(
             run_calibration(Path(arguments.calibration), Path(arguments.thresholds))

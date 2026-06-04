@@ -26,6 +26,9 @@ eval:
 eval-calibrate:
 	uv run argus eval --calibrate
 
+red-team:
+	uv run argus eval --red-team
+
 serve:
 	uv run argus serve --reload
 
