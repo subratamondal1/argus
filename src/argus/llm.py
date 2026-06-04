@@ -66,6 +66,36 @@ class LLMClient:
     def _sampling_kwargs(self) -> dict[str, Any]:
         return {} if self._temperature is None else {"temperature": self._temperature}
 
+    def _prepare_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # Anthropic caches the large static prefix (tools + system, which precede
+        # the conversation) when a cache_control breakpoint is set on the system
+        # block — turns 2..N of a loop then reuse it at ~10% of the input cost.
+        # OpenAI and the rest cache automatically and ignore the marker, so only
+        # rewrite for Anthropic models to avoid sending it where it's unneeded.
+        if "anthropic" not in self._model and "claude" not in self._model:
+            return messages
+        prepared: list[dict[str, Any]] = []
+        marked = False
+        for message in messages:
+            content = message.get("content")
+            if not marked and message.get("role") == "system" and isinstance(content, str):
+                prepared.append(
+                    {
+                        "role": "system",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": content,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                    }
+                )
+                marked = True
+            else:
+                prepared.append(message)
+        return prepared
+
     async def complete(
         self,
         messages: list[dict[str, Any]],
@@ -73,6 +103,7 @@ class LLMClient:
         *,
         on_token: TokenSink | None = None,
     ) -> LLMResponse:
+        messages = self._prepare_messages(messages)
         if on_token is None:
             response: Any = await litellm.acompletion(
                 model=self._model,
@@ -138,6 +169,7 @@ class LLMClient:
     async def complete_structured(
         self, messages: list[dict[str, Any]], schema: type[_Structured]
     ) -> _Structured:
+        messages = self._prepare_messages(messages)
         response: Any = await litellm.acompletion(
             model=self._model,
             messages=messages,
