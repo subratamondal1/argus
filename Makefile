@@ -1,13 +1,13 @@
 .PHONY: up down status ask research eval eval-calibrate serve web web-install format format-check lint typecheck test ci
 
 up:
-	python3 scripts/devstack.py up
+	uv run python scripts/devstack.py up
 
 down:
-	python3 scripts/devstack.py down
+	uv run python scripts/devstack.py down
 
 status:
-	python3 scripts/devstack.py status
+	uv run python scripts/devstack.py status
 
 ask:
 	@test -n "$(Q)" || { echo 'usage: make ask Q="your question"'; exit 1; }
