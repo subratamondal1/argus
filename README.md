@@ -14,12 +14,19 @@
 </p>
 
 <p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue?style=flat" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/tests-150%20passing-brightgreen?style=flat" alt="Tests: 150 passing">
+  <img src="https://img.shields.io/badge/local--first-Ollama-orange?style=flat" alt="Local-first">
+</p>
+
+<!-- Once the repo is PUBLIC, add the live GitHub badges below (they show "repo not found" while private):
+<p align="center">
   <a href="https://github.com/subratamondal1/argus/actions/workflows/ci.yml"><img src="https://github.com/subratamondal1/argus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/subratamondal1/argus/stargazers"><img src="https://img.shields.io/github/stars/subratamondal1/argus?style=flat&color=yellow" alt="Stars"></a>
   <a href="https://github.com/subratamondal1/argus/commits/main"><img src="https://img.shields.io/github/last-commit/subratamondal1/argus?style=flat" alt="Last commit"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/subratamondal1/argus?style=flat" alt="License"></a>
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue?style=flat" alt="Python 3.12+">
 </p>
+-->
 
 <p align="center">
   <a href="#features">Features</a> •
@@ -185,6 +192,7 @@ CI runs the hermetic suite plus a Postgres + Redis integration job and a kind + 
 autoscaling smoke on every push. Integration tests are behind a `pytest -m integration`
 marker so the default suite needs no services.
 
+<!-- Uncomment once the repo has stars (renders an empty chart at 0):
 ## Star history
 
 <p align="center">
@@ -192,6 +200,7 @@ marker so the default suite needs no services.
     <img src="https://api.star-history.com/svg?repos=subratamondal1/argus&type=Date" width="600" alt="Star history">
   </a>
 </p>
+-->
 
 ## License
 
