@@ -12,11 +12,19 @@ from pydantic import BaseModel, Field
 class GoldenItem(BaseModel):
     question: str = Field(description="The question to ask Argus.")
     relevant_sources: list[str] = Field(
-        description="Source-uri substrings that count as a relevant retrieval."
+        default_factory=list,
+        description="Source-uri substrings that count as a relevant retrieval; empty when unanswerable.",
     )
     must_include: list[str] = Field(
         default_factory=list,
         description="Substrings the answer must contain (cheap grounding check).",
+    )
+    unanswerable: bool = Field(
+        default=False,
+        description=(
+            "A negative case: the corpus cannot answer this, so a faithful system must "
+            "abstain. Excluded from retrieval/judge metrics; scored by abstention_rate."
+        ),
     )
 
 
@@ -34,6 +42,8 @@ class Thresholds(BaseModel):
     min_mrr: float = 0.6
     min_judge_pass_rate: float = 0.7
     min_keyword_pass_rate: float = 0.6
+    min_faithfulness: float = 0.7  # RAGAS faithfulness: answers grounded, not hallucinated
+    min_abstention_rate: float = 0.7  # negatives correctly declined ("insufficient information")
     min_judge_kappa: float = 0.6
     # Permissive default so ad-hoc/test threshold sets don't trip the guard; the
     # production floor lives in eval/thresholds.json.

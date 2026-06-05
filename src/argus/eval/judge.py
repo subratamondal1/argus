@@ -13,7 +13,15 @@ from pydantic import BaseModel, Field
 
 
 class Verdict(BaseModel):
-    passed: bool = Field(description="True if the answer is correct and grounded in the context.")
+    passed: bool = Field(description="True if the answer is correct AND grounded in the context.")
+    faithful: bool = Field(
+        default=True,
+        description="Grounded in the context with no hallucinated/unsupported claims (RAGAS faithfulness).",
+    )
+    relevant: bool = Field(
+        default=True,
+        description="Actually addresses the question, not evasive (RAGAS answer relevancy).",
+    )
     reason: str = Field(description="One sentence justifying the verdict.")
 
 
@@ -24,10 +32,12 @@ class JudgeClient(Protocol):
 
 
 _SYSTEM: str = (
-    "You are a strict evaluator. Given a question, a candidate answer, and the "
-    "retrieved context the answer should rely on, decide whether the answer is "
-    "correct AND grounded in that context. Mark passed=false if it is wrong, "
-    "unsupported by the context, or evasive."
+    "You are a strict RAG evaluator. Given a question, a candidate answer, and the "
+    "retrieved context the answer should rely on, return three judgments: "
+    "faithful = the answer is fully grounded in the context with no unsupported or "
+    "hallucinated claims; relevant = the answer actually addresses the question and is "
+    "not evasive; passed = the answer is correct AND grounded. Mark passed=false if it "
+    "is wrong, unsupported by the context, or evasive."
 )
 
 

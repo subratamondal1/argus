@@ -5,5 +5,8 @@
   "min_mrr": 0.6,
   "min_judge_pass_rate": 0.7,
   "min_keyword_pass_rate": 0.6,
-  "min_cases": 6
+  "min_faithfulness": 0.7,
+  "min_abstention_rate": 0.7,
+  "min_judge_kappa": 0.6,
+  "min_cases": 20
 }

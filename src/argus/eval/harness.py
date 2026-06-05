@@ -35,7 +35,20 @@ from argus.tools.web_search import register_web_search
 log = get_logger(__name__)
 
 _CORPUS: str = "argus-eval"
-_SOURCES: tuple[str, ...] = ("README.md", "docs/adr/0001-datastore-postgres-pgvector.md")
+# A curated, source-grounded knowledge corpus on RAG & vector search (eval/corpus/),
+# authored from authoritative references. The golden set's questions are answerable
+# from these docs; negatives deliberately fall outside them. See eval/corpus/README.md.
+_SOURCES: tuple[str, ...] = (
+    "eval/corpus/01_embeddings.md",
+    "eval/corpus/02_ann_and_vector_databases.md",
+    "eval/corpus/03_hnsw.md",
+    "eval/corpus/04_ivf_and_quantization.md",
+    "eval/corpus/05_lexical_bm25.md",
+    "eval/corpus/06_hybrid_search_rrf.md",
+    "eval/corpus/07_rerankers.md",
+    "eval/corpus/08_chunking_contextual_retrieval.md",
+    "eval/corpus/09_rag_architecture_and_evaluation.md",
+)
 
 
 async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) -> EvalReport:
@@ -101,11 +114,17 @@ async def run_calibration(calibration_path: Path, thresholds_path: Path) -> Cali
 def _report_dict(report: EvalReport) -> dict[str, Any]:
     return {
         "n": report.n,
+        "n_unanswerable": report.n_unanswerable,
         "hit_at_k": report.hit_at_k,
         "precision_at_k": report.precision_at_k,
         "mrr": report.mrr,
         "judge_pass_rate": report.judge_pass_rate,
         "keyword_pass_rate": report.keyword_pass_rate,
+        "context_precision": report.context_precision,
+        "context_recall": report.context_recall,
+        "faithfulness": report.faithfulness,
+        "answer_relevancy": report.answer_relevancy,
+        "abstention_rate": report.abstention_rate,
         "passed": report.passed,
         "failures": report.failures,
         "items": [
@@ -118,6 +137,10 @@ def _report_dict(report: EvalReport) -> dict[str, Any]:
                 "judge_passed": item.judge_passed,
                 "judge_reason": item.judge_reason,
                 "keyword_ok": item.keyword_ok,
+                "faithful": item.faithful,
+                "relevant": item.relevant,
+                "unanswerable": item.unanswerable,
+                "abstained": item.abstained,
             }
             for item in report.items
         ],

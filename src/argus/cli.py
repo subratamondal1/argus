@@ -84,12 +84,17 @@ def _main_ingest(argv: list[str]) -> int:
 def _format_eval(report: EvalReport) -> str:
     status: str = "PASS" if report.passed else "FAIL"
     lines: list[str] = [
-        f"eval {status}  (n={report.n})",
-        f"  hit@k             {report.hit_at_k:.3f}",
-        f"  precision@k       {report.precision_at_k:.3f}",
-        f"  mrr               {report.mrr:.3f}",
-        f"  judge_pass_rate   {report.judge_pass_rate:.3f}",
-        f"  keyword_pass_rate {report.keyword_pass_rate:.3f}",
+        f"eval {status}  (n={report.n}, unanswerable={report.n_unanswerable})",
+        "  retrieval (RAGAS):",
+        f"    context_precision  {report.context_precision:.3f}  (precision@k)",
+        f"    context_recall     {report.context_recall:.3f}  (hit@k)",
+        f"    mrr                {report.mrr:.3f}",
+        "  generation (RAGAS):",
+        f"    faithfulness       {report.faithfulness:.3f}",
+        f"    answer_relevancy   {report.answer_relevancy:.3f}",
+        f"    answer_correctness {report.judge_pass_rate:.3f}  (judge_pass_rate)",
+        f"    keyword_grounding  {report.keyword_pass_rate:.3f}",
+        f"  abstention_rate     {report.abstention_rate:.3f}  (negatives declined)",
     ]
     lines.extend(f"  - {failure}" for failure in report.failures)
     return "\n".join(lines) + "\n"
