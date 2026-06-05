@@ -207,6 +207,18 @@ def _main_migrate(argv: list[str]) -> int:
     return 0
 
 
+def _main_mcp(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="argus mcp",
+        description="Expose Argus's tool registry as an MCP server over stdio.",
+    )
+    parser.parse_args(argv)
+    from argus.mcp_server import run_stdio
+
+    asyncio.run(run_stdio())
+    return 0
+
+
 def _dispatch(argv: list[str]) -> int:
     if argv and argv[0] == "ingest":
         return _main_ingest(argv[1:])
@@ -216,6 +228,8 @@ def _dispatch(argv: list[str]) -> int:
         return _main_migrate(argv[1:])
     if argv and argv[0] == "serve":
         return _main_serve(argv[1:])
+    if argv and argv[0] == "mcp":
+        return _main_mcp(argv[1:])
     return _main_ask(argv)
 
 

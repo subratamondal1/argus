@@ -158,6 +158,16 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- MCP server (registry-as-MCP; optional `mcp` extra; `argus mcp`) ---
+    mcp_expose_ask: bool = Field(
+        default=False,
+        description=(
+            "Also expose ASK-gated tools (the sandboxed execute_python) over the MCP server. "
+            "Off by default — only ALLOW tools (web_search/web_fetch/rag_search) are exposed; "
+            "over MCP the host owns tool-call approval."
+        ),
+    )
+
     # --- API rate limiting (Redis sliding-window; shared across API replicas) ---
     rate_limit_enabled: bool = Field(
         default=False, description="Enable the per-client Redis sliding-window rate limiter."

@@ -43,6 +43,7 @@ otel = [
     "opentelemetry-sdk>=1.30",
 ]
 durable = ["dbos>=2.23,<3"]                # Postgres-checkpointed durable research (ARGUS_USE_DURABLE)
+mcp = ["mcp>=1.27,<2"]                      # expose the tool registry as an MCP server (`argus mcp`)
 
 [project.scripts]
 argus = "argus.cli:main"
