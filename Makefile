@@ -1,4 +1,4 @@
-.PHONY: up down status ask research eval eval-calibrate serve web web-install format format-check lint typecheck test ci
+.PHONY: up down status ask research eval eval-calibrate serve mcp web web-install format format-check lint typecheck test ci
 
 up:
 	uv run python scripts/devstack.py up
@@ -31,6 +31,9 @@ red-team:
 
 serve:
 	uv run argus serve --reload
+
+mcp:
+	uv run argus mcp
 
 web-install:
 	cd frontend && bun install
