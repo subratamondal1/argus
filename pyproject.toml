@@ -42,6 +42,7 @@ otel = [
     "opentelemetry-instrumentation-httpx>=0.51b0",
     "opentelemetry-sdk>=1.30",
 ]
+durable = ["dbos>=2.23,<3"]                # Postgres-checkpointed durable research (ARGUS_USE_DURABLE)
 
 [project.scripts]
 argus = "argus.cli:main"

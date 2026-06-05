@@ -148,6 +148,16 @@ class Settings(BaseSettings):
         description="Max seconds the orchestrator waits on one searcher Job.result().",
     )
 
+    # --- Durable execution (DBOS; optional `durable` extra; Postgres-checkpointed) ---
+    use_durable: bool = Field(
+        default=False,
+        description=(
+            "Run deep research as a DBOS durable workflow so a crash resumes from the last "
+            "completed step. Checkpoints into the existing Postgres (schema argus_dbos); "
+            "needs the 'durable' extra. Leaves the in-process + ARQ/KEDA paths untouched."
+        ),
+    )
+
     # --- API rate limiting (Redis sliding-window; shared across API replicas) ---
     rate_limit_enabled: bool = Field(
         default=False, description="Enable the per-client Redis sliding-window rate limiter."

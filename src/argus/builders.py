@@ -9,7 +9,7 @@ from __future__ import annotations
 from argus.agent.adaptive import AdaptiveOrchestrator
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop
-from argus.agent.orchestrator import Orchestrator
+from argus.agent.orchestrator import Orchestrator, ResearchReport
 from argus.agent.prompts import direct_system_prompt
 from argus.config import Settings, get_settings
 from argus.llm import LLMClient
@@ -90,3 +90,22 @@ def build_adaptive(
         orchestrator=build_orchestrator(sources, tenant=tenant),
         ingested_sources=sources,
     )
+
+
+async def run_durable_research(
+    question: str, ingested_sources: list[str] | None = None, *, tenant: str = "public"
+) -> ResearchReport:
+    # Lazy import keeps DBOS (the optional `durable` extra) out of the default import
+    # graph — only the opt-in durable path pulls it in. Launch is idempotent and
+    # recovers any workflows a prior crash left pending before the new run starts.
+    from argus.agent.durable import configure_durable, launch_durable, run_durable
+
+    settings = get_settings()
+    launch_durable(settings)
+    configure_durable(
+        llm=build_llm(settings),
+        registry=build_registry(tenant=tenant),
+        searcher_budget=build_budget(settings),
+        ingested_sources=list(ingested_sources or []),
+    )
+    return await run_durable(question)

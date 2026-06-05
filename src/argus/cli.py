@@ -26,7 +26,12 @@ from argus.rag.ingest import ingest_source
 async def _run(question: str, *, deep: bool) -> int:
     log = get_logger(__name__)
     if deep:
-        report = await build_orchestrator().run(question)
+        if get_settings().use_durable:
+            from argus.builders import run_durable_research
+
+            report = await run_durable_research(question)
+        else:
+            report = await build_orchestrator().run(question)
         sys.stdout.write(report.answer.rstrip() + "\n")
         log.info("done", mode="deep", rounds=report.rounds, findings=len(report.findings))
     else:
