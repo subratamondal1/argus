@@ -69,8 +69,10 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
     async def _judge(question: str, answer: str, context: str) -> Verdict:
         return await judge_answer(judge_llm, question=question, answer=answer, context=context)
 
+    log.info("eval_start", golden=len(golden), sources=len(_SOURCES), model=settings.model)
     try:
         for source in _SOURCES:
+            log.info("eval_ingest", source=source)  # contextualize+embed is slow on a local LLM
             await ingest_source(source, corpus=_CORPUS)
         report = await evaluate(
             golden, thresholds, retrieve=_retrieve, answer=_answer, judge=_judge

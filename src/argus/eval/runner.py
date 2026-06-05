@@ -78,7 +78,12 @@ async def evaluate(
     judge: JudgeFn,
 ) -> EvalReport:
     results: list[ItemResult] = []
-    for item in golden:
+    total: int = len(golden)
+    log.info("eval_run", n=total)
+    for index, item in enumerate(golden, start=1):
+        # Log BEFORE the slow retrieve+answer+judge so progress is visible per item
+        # (on a local LLM each item can take seconds, which otherwise looks hung).
+        log.info("eval_item_start", i=index, n=total, question=item.question)
         chunks: list[RetrievedChunk] = await retrieve(item.question)
         relevances: list[bool] = [
             _is_relevant(chunk.source_uri, item.relevant_sources) for chunk in chunks
@@ -98,7 +103,14 @@ async def evaluate(
                 keyword_ok=_keyword_ok(answer_text, item.must_include),
             )
         )
-        log.info("eval_item", question=item.question, hit=results[-1].hit, judged=verdict.passed)
+        log.info(
+            "eval_item",
+            i=index,
+            n=total,
+            question=item.question,
+            hit=results[-1].hit,
+            judged=verdict.passed,
+        )
     return _aggregate(results, thresholds)
 
 
