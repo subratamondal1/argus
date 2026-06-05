@@ -179,8 +179,10 @@ phase boundary, not only at the end.
   stack-provisioned CI job and self-hosted Langfuse + Phoenix. *The minimum hireable artifact.*
 - **Phase 4 — Kubernetes + KEDA**: queue-depth scale-from-zero of lightweight searcher pods; the
   0→N→0 autoscale curve under a reproducible load test; chaos-kill proof of no dropped work.
-- **Phase 5 — Durable execution + sandbox + MCP**: checkpoint/resume across pod eviction;
-  sandboxed `execute_python` behind a human-in-the-loop gate; the registry exposed as an MCP server.
+- **Phase 5 — Durable execution + sandbox + MCP**: **DBOS durable execution** ✅ (opt-in
+  `ARGUS_USE_DURABLE`; deep research checkpoints per step into Postgres and resumes from the last
+  step after a crash — verified by `scripts/durable_crash_resume.py`); sandboxed `execute_python`
+  behind a human-in-the-loop gate ✅; the registry exposed as an MCP server (roadmap).
 - **Phase 6 — Polish**: README top-fold demo, architecture docs, ADRs, and a documented
   failure-mode catalog.
 
