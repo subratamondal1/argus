@@ -1,20 +1,47 @@
-# Argus
+<p align="center">
+  <img src="https://em-content.zobj.net/source/apple/391/eye_1f441-fe0f.png" width="110" alt="Argus" />
+</p>
 
-[![CI](https://github.com/subratamondal1/argus/actions/workflows/ci.yml/badge.svg)](https://github.com/subratamondal1/argus/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+<h1 align="center">Argus</h1>
 
-A framework-free, multi-agent **deep-research engine**. A planner decomposes a
-question into sub-questions; a fan-out of hand-written searcher agents researches
-them in parallel over the live web and a local document corpus; a synthesizer fuses
-the findings into a cited answer. Retrieval quality is enforced by an eval gate that
-blocks regressions, the searcher fan-out autoscales from zero on Kubernetes, and a
-research run can be made crash-resumable.
+<p align="center">
+  <strong>Own the agent loop, not the framework.</strong>
+</p>
 
-Built on Python 3.12, LiteLLM, PostgreSQL + pgvector, FastAPI, and Next.js — with no
-agent framework (no LangChain/LangGraph): the agent loop, budget, and failure
-handling are owned directly. **Local-first** — it runs at zero cost on Ollama;
-OpenAI and Anthropic are optional drop-ins.
+<p align="center">
+  A framework-free, multi-agent deep-research engine — a planner fans out parallel<br/>
+  agents over the web and your documents, and a synthesizer writes a cited answer.
+</p>
+
+<p align="center">
+  <a href="https://github.com/subratamondal1/argus/actions/workflows/ci.yml"><img src="https://github.com/subratamondal1/argus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/subratamondal1/argus/stargazers"><img src="https://img.shields.io/github/stars/subratamondal1/argus?style=flat&color=yellow" alt="Stars"></a>
+  <a href="https://github.com/subratamondal1/argus/commits/main"><img src="https://img.shields.io/github/last-commit/subratamondal1/argus?style=flat" alt="Last commit"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/subratamondal1/argus?style=flat" alt="License"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue?style=flat" alt="Python 3.12+">
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#how-it-works">How it works</a> •
+  <a href="#eval-gate">Eval</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#development">Development</a>
+</p>
+
+---
+
+Argus answers a hard question the way a research team would: a **planner** breaks it into
+sub-questions, a fan-out of hand-written **searcher agents** researches them in parallel over
+the live web and a local document corpus, and a **synthesizer** writes a cited answer.
+Retrieval quality is enforced by an **eval gate** that blocks regressions, the searcher
+fan-out **autoscales from zero** on Kubernetes, and a run can be made **crash-resumable**.
+
+Built on Python 3.12 · LiteLLM · PostgreSQL + pgvector · FastAPI · Next.js — with **no agent
+framework** (no LangChain/LangGraph): the loop, the budget, and the failure handling are owned
+directly. **Local-first** — it runs at zero cost on Ollama; OpenAI and Anthropic are optional
+drop-ins.
 
 ## Features
 
@@ -157,6 +184,14 @@ make mcp         # run the tool registry as an MCP server over stdio   (or: argu
 CI runs the hermetic suite plus a Postgres + Redis integration job and a kind + KEDA
 autoscaling smoke on every push. Integration tests are behind a `pytest -m integration`
 marker so the default suite needs no services.
+
+## Star history
+
+<p align="center">
+  <a href="https://star-history.com/#subratamondal1/argus&Date">
+    <img src="https://api.star-history.com/svg?repos=subratamondal1/argus&type=Date" width="600" alt="Star history">
+  </a>
+</p>
 
 ## License
 
