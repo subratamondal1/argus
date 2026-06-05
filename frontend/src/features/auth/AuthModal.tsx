@@ -4,7 +4,7 @@ import { Loader2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { loadConversations } from "../chat/sync";
+import { adoptAndLoad } from "../chat/sync";
 import { useAuthStore } from "./store";
 
 // A sign-in / sign-up modal, portaled to <body> so it pins to the viewport.
@@ -30,7 +30,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     const ok = await (mode === "login" ? login(email, password) : signup(email, password));
     if (ok) {
-      await loadConversations();
+      await adoptAndLoad(); // fold this browser's anonymous chats in, then load history
       onClose();
     }
   }

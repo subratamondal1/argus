@@ -81,6 +81,14 @@ def tenant_from_authorization(authorization: str | None) -> str | None:
     return tenant if isinstance(tenant, str) else None
 
 
+def tenant_from_cookie(cookie_token: str | None) -> str | None:
+    if not cookie_token:
+        return None
+    claims: dict[str, object] | None = decode_token(cookie_token)
+    tenant: object = claims.get("tenant") if claims else None
+    return tenant if isinstance(tenant, str) else None
+
+
 async def signup(email: str, password: str) -> AuthResult:
     normalized: str = email.strip().lower()
     if "@" not in normalized or len(password) < _MIN_PASSWORD:

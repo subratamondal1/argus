@@ -2,7 +2,7 @@
 
 import { Menu, PenSquare } from "lucide-react";
 import { useEffect, useState } from "react";
-
+import { useAuthStore } from "../auth/store";
 import { Composer } from "./components/Composer";
 import { Sidebar } from "./components/Sidebar";
 import { Turn } from "./components/Turn";
@@ -30,10 +30,16 @@ export function ChatPage() {
   const scrollRef = useStickToBottom(turns.length);
   const [viewport, setViewport] = useState(0);
 
-  // If a token was restored from a previous session, pull that account's history
-  // from the server (no-op when signed out — anonymous history stays local).
+  // On mount, confirm the httpOnly session cookie with the server (the token isn't
+  // in JS anymore). If it's still valid, pull that account's history; otherwise the
+  // user is anonymous and history stays local.
   useEffect(() => {
-    void loadConversations();
+    void useAuthStore
+      .getState()
+      .me()
+      .then((ok) => {
+        if (ok) return loadConversations();
+      });
   }, []);
 
   // Track the scroll viewport height so the active turn can be cushioned to fill

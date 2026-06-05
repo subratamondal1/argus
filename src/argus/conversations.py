@@ -37,6 +37,12 @@ class Conversation:
     turns: list[dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class ImportOutcome:
+    imported: int
+    already_existed: int
+
+
 async def list_conversations(tenant: str) -> list[ConversationSummary]:
     pool = await get_pool()
     async with pool.acquire() as connection:
@@ -85,6 +91,35 @@ async def upsert_conversation(
             orjson.dumps(turns).decode(),
         )
     return updated_at
+
+
+async def import_conversations(
+    tenant: str, items: list[tuple[uuid.UUID, str, list[dict[str, Any]], datetime]]
+) -> ImportOutcome:
+    # Adopt the anonymous chats a user uploads at signup/login. ON CONFLICT DO
+    # NOTHING is deliberate (unlike the live-save upsert's DO UPDATE): importing a
+    # stale local copy must never clobber richer server history — it only adds the
+    # conversations the account doesn't have yet. Idempotent: the client UUID is the
+    # key, so re-running converges. The whole batch is one transaction.
+    if not items:
+        return ImportOutcome(0, 0)
+    pool = await get_pool()
+    imported: int = 0
+    async with pool.acquire() as connection, connection.transaction():
+        for conversation_id, title, turns, created_at in items:
+            tag: str = await connection.execute(
+                "INSERT INTO conversations (id, tenant, title, turns, created_at, updated_at) "
+                "VALUES ($1, $2, $3, $4::jsonb, $5, $5) "
+                "ON CONFLICT (tenant, id) DO NOTHING",
+                conversation_id,
+                tenant,
+                title,
+                orjson.dumps(turns).decode(),
+                created_at,
+            )
+            if tag.endswith("1"):
+                imported += 1
+    return ImportOutcome(imported, len(items) - imported)
 
 
 async def delete_conversation(tenant: str, conversation_id: str) -> bool:

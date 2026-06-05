@@ -53,11 +53,14 @@ def test_default_jwt_secret_blocked_in_production() -> None:
 
     from argus.config import _DEFAULT_JWT_SECRET, Settings
 
+    real: str = "x" * 40
     with pytest.raises(ValidationError):
-        Settings(environment="production", jwt_secret=_DEFAULT_JWT_SECRET)
+        Settings(environment="production", jwt_secret=_DEFAULT_JWT_SECRET, csrf_secret=real)
     with pytest.raises(ValidationError):
-        Settings(environment="production", jwt_secret="too-short")
-    Settings(environment="production", jwt_secret="x" * 40)  # real secret: ok
+        Settings(environment="production", jwt_secret="too-short", csrf_secret=real)
+    with pytest.raises(ValidationError):  # the CSRF secret is guarded the same way
+        Settings(environment="production", jwt_secret=real, csrf_secret=_DEFAULT_JWT_SECRET)
+    Settings(environment="production", jwt_secret=real, csrf_secret="y" * 40)  # both real: ok
     Settings(environment="development", jwt_secret=_DEFAULT_JWT_SECRET)  # dev allows the default
 
 

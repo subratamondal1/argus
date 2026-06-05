@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -183,20 +183,70 @@ class Settings(BaseSettings):
         default=86_400, gt=0, description="JWT lifetime in seconds (default 1 day)."
     )
 
+    # --- Session cookie (httpOnly JWT carrier; CSRF-paired) — robust vs localStorage ---
+    cookie_name: str = Field(
+        default="argus_session",
+        description=(
+            "Session cookie name (carries the HS256 JWT, httpOnly). Use "
+            "'__Host-argus_session' in prod ONLY when host-only (no cookie_domain) — the "
+            "__Host- prefix forbids Domain."
+        ),
+    )
+    cookie_secure: bool = Field(
+        default=False,
+        description=(
+            "Set Secure on the session/CSRF cookies. MUST be true in prod (HTTPS); false in "
+            "dev because http://localhost drops Secure cookies."
+        ),
+    )
+    cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="lax",
+        description=(
+            "SameSite for the cookies. 'lax' is correct for same-site dev (localhost:3000<->8000, "
+            "ports don't affect site) and same-registrable-domain prod; 'none' (needs Secure) "
+            "only for split-registrable-domain prod."
+        ),
+    )
+    cookie_domain: str | None = Field(
+        default=None,
+        description=(
+            "Cookie Domain attribute. None = host-only (tightest). Set 'argus.app' only to span "
+            "app/api subdomains; incompatible with a __Host- cookie_name."
+        ),
+    )
+    csrf_cookie_name: str = Field(
+        default="argus_csrf",
+        description="Non-httpOnly CSRF cookie the SPA reads and echoes back as a header.",
+    )
+    csrf_header_name: str = Field(
+        default="X-CSRF-Token", description="Header the SPA sends carrying the CSRF token."
+    )
+    csrf_secret: str = Field(
+        default=_DEFAULT_JWT_SECRET,
+        description=(
+            "HMAC key for signed double-submit CSRF tokens — MUST be overridden in prod (the "
+            "same fail-fast validator as jwt_secret covers it)."
+        ),
+    )
+
     log_level: str = Field(default="INFO", description="structlog/stdlib level (e.g. DEBUG, INFO).")
     log_json: bool = Field(default=False, description="Emit JSON logs.")
 
     @model_validator(mode="after")
     def _require_real_jwt_secret(self) -> Self:
-        # Fail fast: outside development, a JWT secret that's the public default or
-        # under 32 bytes lets anyone forge tokens for any tenant. Refuse to boot.
-        if self.environment != "development" and (
-            self.jwt_secret == _DEFAULT_JWT_SECRET or len(self.jwt_secret) < 32
+        # Fail fast: outside development, a JWT or CSRF secret that's the public default
+        # or under 32 bytes lets anyone forge tokens (auth) or CSRF challenges. Refuse to boot.
+        if self.environment == "development":
+            return self
+        for name, value in (
+            ("ARGUS_JWT_SECRET", self.jwt_secret),
+            ("ARGUS_CSRF_SECRET", self.csrf_secret),
         ):
-            raise ValueError(
-                "ARGUS_JWT_SECRET must be a unique secret of at least 32 bytes outside "
-                "development (set ARGUS_ENVIRONMENT=development to allow the dev default)."
-            )
+            if value == _DEFAULT_JWT_SECRET or len(value) < 32:
+                raise ValueError(
+                    f"{name} must be a unique secret of at least 32 bytes outside development "
+                    "(set ARGUS_ENVIRONMENT=development to allow the dev default)."
+                )
         return self
 
     @property

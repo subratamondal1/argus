@@ -2,10 +2,9 @@
 
 import { useCallback, useRef } from "react";
 
-import { API_BASE, friendlyError } from "@/shared/lib/api";
+import { API_BASE, csrfHeaders, friendlyError, WITH_CREDENTIALS } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
-import { authHeader } from "../../auth/store";
 import { useChatStore } from "../store";
 import { saveConversation } from "../sync";
 import type { AgentEvent } from "../types";
@@ -123,7 +122,8 @@ export function useAsk(): Ask {
     try {
       const response = await fetch(`${API_BASE}/api/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
+        credentials: WITH_CREDENTIALS,
         body: JSON.stringify({ question, deep, ingested }),
         signal: controller.signal,
       });

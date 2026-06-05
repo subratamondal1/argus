@@ -2,14 +2,16 @@
 
 // Server-side conversation history, for signed-in accounts only. Anonymous users
 // keep their history in the browser (Zustand persist), so every function here is a
-// no-op without a token. Failures are logged and swallowed — losing a history sync
-// must never break the live chat. The store stays the in-memory source of truth;
-// this layer mirrors it to (and from) the backend, keyed by the JWT's tenant.
+// no-op without a session. Failures are logged and swallowed — losing a history
+// sync must never break the live chat. The store stays the in-memory source of
+// truth; this layer mirrors it to (and from) the backend, keyed by the JWT's
+// tenant. Auth rides an httpOnly cookie (credentials:'include'); mutating calls
+// echo the CSRF cookie as a header.
 
-import { API_BASE } from "@/shared/lib/api";
+import { API_BASE, csrfHeaders, WITH_CREDENTIALS } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
-import { authHeader, useAuthStore } from "../auth/store";
+import { useAuthStore } from "../auth/store";
 import { type Conversation, type Turn, useChatStore } from "./store";
 
 // Conversation ids whose full turns are already in the store (loaded from the
@@ -24,7 +26,7 @@ interface SummaryDTO {
 }
 
 function signedIn(): boolean {
-  return useAuthStore.getState().token !== null;
+  return useAuthStore.getState().user !== null;
 }
 
 // The durable slice of a turn: its question/answer/sources, not the live event
@@ -57,13 +59,55 @@ function rehydrateTurn(raw: Record<string, unknown>): Turn {
   };
 }
 
+// Adopt the chats made while logged out: upload this browser's local conversations
+// so the server attaches them to the now-authenticated tenant. The server merges
+// (never clobbers) keyed by the client UUID, so this is idempotent. Run BEFORE
+// loadConversations so the local chats are saved before the list is replaced.
+export async function importAnonConversations(): Promise<void> {
+  if (!signedIn()) return;
+  const local = useChatStore
+    .getState()
+    .conversations.filter((conversation) =>
+      conversation.turns.some((turn) => turn.status === "done" && turn.answer.trim()),
+    );
+  if (local.length === 0) return;
+  const payload = {
+    conversations: local.slice(0, 200).map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title || "New chat",
+      created_at: conversation.createdAt,
+      turns: conversation.turns
+        .filter((turn) => turn.status === "done")
+        .map((turn) => ({
+          id: turn.id,
+          question: turn.question,
+          answer: turn.answer,
+          sources: turn.sources,
+          deep: turn.deep,
+        })),
+    })),
+  };
+  try {
+    await fetch(`${API_BASE}/api/conversations/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      credentials: WITH_CREDENTIALS,
+      body: JSON.stringify(payload),
+    });
+  } catch (caught) {
+    logger.error("history import failed", caught);
+  }
+}
+
 // Pull the account's history into the store. Replaces whatever was cached locally
 // (anonymous chats or a previous account), so a signed-in user only ever sees
 // their own conversations.
 export async function loadConversations(): Promise<void> {
   if (!signedIn()) return;
   try {
-    const response = await fetch(`${API_BASE}/api/conversations`, { headers: { ...authHeader() } });
+    const response = await fetch(`${API_BASE}/api/conversations`, {
+      credentials: WITH_CREDENTIALS,
+    });
     if (!response.ok) return;
     const body = (await response.json()) as { conversations: SummaryDTO[] };
     hydrated.clear();
@@ -79,6 +123,13 @@ export async function loadConversations(): Promise<void> {
   }
 }
 
+// Sign in / sign up, then fold in this browser's anonymous chats and load the
+// unified, recency-ordered history.
+export async function adoptAndLoad(): Promise<void> {
+  await importAnonConversations();
+  await loadConversations();
+}
+
 // Open a conversation, fetching its turns on first access (the list endpoint
 // returns titles only, so the sidebar stays cheap).
 export async function openConversation(id: string): Promise<void> {
@@ -86,7 +137,7 @@ export async function openConversation(id: string): Promise<void> {
   if (!signedIn() || hydrated.has(id)) return;
   try {
     const response = await fetch(`${API_BASE}/api/conversations/${id}`, {
-      headers: { ...authHeader() },
+      credentials: WITH_CREDENTIALS,
     });
     if (!response.ok) return;
     const body = (await response.json()) as { turns: Record<string, unknown>[] };
@@ -121,7 +172,8 @@ async function flush(id: string): Promise<void> {
   try {
     await fetch(`${API_BASE}/api/conversations/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      credentials: WITH_CREDENTIALS,
       body: JSON.stringify({ title: conversation.title, turns }),
     });
   } catch (caught) {
@@ -136,17 +188,28 @@ export async function removeConversation(id: string): Promise<void> {
   try {
     await fetch(`${API_BASE}/api/conversations/${id}`, {
       method: "DELETE",
-      headers: { ...authHeader() },
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      credentials: WITH_CREDENTIALS,
     });
   } catch (caught) {
     logger.error("history delete failed", caught);
   }
 }
 
-// Sign out: drop the token, then wipe the local cache so the account's chats don't
-// linger in the browser for whoever uses it next.
-export function signOut(): void {
-  useAuthStore.getState().logout();
+// Sign out: clear the server cookies, drop the cached user, then wipe the local
+// chat cache so the account's chats don't linger in the browser for whoever uses
+// it next.
+export async function signOut(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      credentials: WITH_CREDENTIALS,
+    });
+  } catch (caught) {
+    logger.error("logout failed", caught);
+  }
+  useAuthStore.getState().setLoggedOut();
   hydrated.clear();
   useChatStore.getState().replaceConversations([], null);
 }

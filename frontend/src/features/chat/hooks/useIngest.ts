@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { API_BASE, friendlyError } from "@/shared/lib/api";
+import { API_BASE, csrfHeaders, friendlyError, WITH_CREDENTIALS } from "@/shared/lib/api";
 import { logger } from "@/shared/lib/logger";
 
-import { authHeader } from "../../auth/store";
 import { useChatStore } from "../store";
 
 type IngestStatus = "idle" | "loading" | "done" | "error";
@@ -127,7 +126,8 @@ export function useIngest(): Ingest {
     guard(source, async (signal) => {
       const response = await fetch(`${API_BASE}/api/ingest`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
+        credentials: WITH_CREDENTIALS,
         body: JSON.stringify({ source }),
         signal,
       });
@@ -151,7 +151,10 @@ export function useIngest(): Ingest {
       form.append("file", file);
       const response = await fetch(`${API_BASE}/api/ingest/upload`, {
         method: "POST",
-        headers: authHeader(),
+        // No Content-Type: the browser sets the multipart boundary. CSRF still
+        // applies (the upload route is exempted from the JSON-only gate server-side).
+        headers: csrfHeaders(),
+        credentials: WITH_CREDENTIALS,
         body: form,
         signal,
       });

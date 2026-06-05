@@ -90,6 +90,116 @@ async def test_put_then_summary_roundtrips(monkeypatch: pytest.MonkeyPatch) -> N
     assert response.json()["id"] == conversation_id
 
 
+async def test_import_attaches_to_token_tenant_and_skips_junk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from argus.conversations import ImportOutcome
+
+    captured: dict[str, object] = {}
+
+    async def fake_import(tenant: str, items: list[object]) -> ImportOutcome:
+        captured["tenant"] = tenant
+        captured["count"] = len(items)
+        return ImportOutcome(len(items), 0)
+
+    monkeypatch.setattr(web, "import_conversations", fake_import)
+    body = {
+        "conversations": [
+            {
+                "id": str(uuid.uuid4()),
+                "title": "real",
+                "turns": [{"id": str(uuid.uuid4()), "question": "q", "answer": "a"}],
+            },
+            {"id": str(uuid.uuid4()), "title": "empty", "turns": []},  # junk -> skipped
+            {
+                "id": str(uuid.uuid4()),
+                "title": "in-progress",
+                "turns": [{"id": str(uuid.uuid4()), "question": "q", "answer": "   "}],
+            },  # single answer-less turn -> skipped
+        ]
+    }
+    async with _client() as client:
+        response = await client.post(
+            "/api/conversations/import", headers=_bearer("acct-imp"), json=body
+        )
+    assert response.status_code == 200
+    assert captured["tenant"] == "acct-imp"  # tenant from token, never the body
+    assert captured["count"] == 1  # both junk conversations dropped before insert
+    assert response.json() == {"imported": 1, "already_existed": 0, "skipped": 2}
+
+
+async def test_import_requires_auth() -> None:
+    async with _client() as client:
+        response = await client.post("/api/conversations/import", json={"conversations": []})
+    assert response.status_code == 401
+
+
+async def test_import_rejects_oversized_batch() -> None:
+    body = {
+        "conversations": [
+            {
+                "id": str(uuid.uuid4()),
+                "title": "t",
+                "turns": [{"id": str(uuid.uuid4()), "question": "q", "answer": "a"}],
+            }
+            for _ in range(201)  # cap is 200
+        ]
+    }
+    async with _client() as client:
+        response = await client.post("/api/conversations/import", headers=_bearer(), json=body)
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_import_idempotency_isolation_and_merge() -> None:
+    import asyncpg
+
+    from argus.config import get_settings
+    from argus.conversations import get_conversation, import_conversations
+    from argus.db import close_pool
+
+    settings = get_settings()
+    try:
+        probe = await asyncpg.connect(settings.database_url)
+        await probe.close()
+    except Exception:
+        pytest.skip(f"no Postgres at {settings.database_url}")
+
+    alice, bob = f"alice-{uuid.uuid4().hex[:8]}", f"bob-{uuid.uuid4().hex[:8]}"
+    conversation_id = uuid.uuid4()
+    when = datetime(2026, 6, 4, tzinfo=UTC)
+    try:
+        first = await import_conversations(
+            alice, [(conversation_id, "Alice", [{"id": "t1"}], when)]
+        )
+        assert first.imported == 1
+
+        # Re-import with richer content -> DO NOTHING: idempotent, never clobbers.
+        second = await import_conversations(
+            alice, [(conversation_id, "Renamed", [{"id": "t1"}, {"id": "t2"}], when)]
+        )
+        assert second.imported == 0
+        assert second.already_existed == 1
+        survived = await get_conversation(alice, str(conversation_id))
+        assert survived is not None
+        assert survived.title == "Alice" and len(survived.turns) == 1  # original wins
+
+        # Bob importing the SAME client UUID writes his own (tenant, id) row.
+        await import_conversations(bob, [(conversation_id, "Bob", [{"id": "b1"}], when)])
+        bob_copy = await get_conversation(bob, str(conversation_id))
+        alice_copy = await get_conversation(alice, str(conversation_id))
+        assert bob_copy is not None and bob_copy.title == "Bob"
+        assert alice_copy is not None and alice_copy.title == "Alice"  # untouched by Bob
+    finally:
+        pool = await asyncpg.create_pool(settings.database_url)
+        async with pool.acquire() as connection:
+            await connection.execute(
+                "DELETE FROM conversations WHERE tenant = ANY($1::text[])", [alice, bob]
+            )
+        await pool.close()
+        await close_pool()
+
+
 @pytest.mark.integration
 async def test_history_isolation_and_roundtrip() -> None:
     import asyncpg

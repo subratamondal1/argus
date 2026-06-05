@@ -5,6 +5,11 @@ synthesize, answer) as Server-Sent Events, so the UI can render the multi-agent
 flow live. The agent runs in a task that pushes events onto a queue; the SSE
 generator drains the queue until a sentinel. The asyncpg pool is opened lazily on
 first use and closed once on shutdown.
+
+Auth is dual-path: a browser carries the JWT in an httpOnly session cookie (so XSS
+can't read it), while curl/CLI/tests use an Authorization: Bearer header. The
+header path is structurally CSRF-immune and exempt; the cookie path is guarded by a
+signed double-submit CSRF token on mutating requests (see _enforce_csrf).
 """
 
 from __future__ import annotations
@@ -15,28 +20,39 @@ import tempfile
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import orjson
 import structlog
-from fastapi import FastAPI, File, Header, UploadFile
+from fastapi import Depends, FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import UUID4, BaseModel, EmailStr, Field
 from sse_starlette.sse import EventSourceResponse
 
 from argus.agent.events import AgentEvent
 from argus.agent.prompts import related_questions_messages
-from argus.auth import AuthError, AuthResult, decode_token, login, signup, tenant_from_authorization
+from argus.auth import (
+    AuthError,
+    AuthResult,
+    decode_token,
+    login,
+    signup,
+    tenant_from_authorization,
+    tenant_from_cookie,
+)
 from argus.builders import build_adaptive, build_llm
 from argus.config import get_settings
 from argus.conversations import (
     delete_conversation,
     get_conversation,
+    import_conversations,
     list_conversations,
     upsert_conversation,
 )
+from argus.csrf import issue_csrf_token, verify_csrf_token
 from argus.db import close_pool, get_pool
 from argus.logging import configure_logging, get_logger
 from argus.observability import setup_langfuse, setup_tracing
@@ -88,11 +104,16 @@ app = FastAPI(title="Argus", version="0.0.1", lifespan=_lifespan)
 # CORS headers, and the limiter never runs before the id is bound.
 app.add_middleware(RateLimitMiddleware, settings=get_settings())
 app.add_middleware(RequestIdMiddleware)
+# allow_credentials=True is required so the browser sends the session cookie on the
+# cross-origin (different-port) fetch; with credentials, Allow-Origin can't be "*"
+# (the exact-origin allowlist already satisfies that), and methods/headers are
+# enumerated rather than wildcarded so the CSRF header is explicitly permitted.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", "X-Request-Id"],
     expose_headers=["X-Request-Id"],
 )
 install_error_handlers(app)
@@ -144,6 +165,40 @@ def _auth_response(result: AuthResult) -> AuthResponse:
     )
 
 
+def _set_session_cookies(response: Response, jwt_token: str) -> None:
+    # The browser's source of truth for auth: an httpOnly session cookie (JS can't
+    # read it -> XSS can't exfiltrate the token) plus a readable CSRF cookie the SPA
+    # echoes back as a header. Attributes are env-driven so prod can harden (Secure,
+    # SameSite, Domain) without code changes.
+    settings = get_settings()
+    response.set_cookie(
+        settings.cookie_name,
+        jwt_token,
+        max_age=settings.jwt_expiry_s,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        path="/",
+        domain=settings.cookie_domain,
+    )
+    response.set_cookie(
+        settings.csrf_cookie_name,
+        issue_csrf_token(settings.csrf_secret),
+        max_age=settings.jwt_expiry_s,
+        httponly=False,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        path="/",
+        domain=settings.cookie_domain,
+    )
+
+
+def _clear_session_cookies(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie(settings.cookie_name, path="/", domain=settings.cookie_domain)
+    response.delete_cookie(settings.csrf_cookie_name, path="/", domain=settings.cookie_domain)
+
+
 class ConversationSummaryOut(BaseModel):
     id: str
     title: str
@@ -164,54 +219,168 @@ class ConversationUpsert(BaseModel):
     turns: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ImportTurn(BaseModel):
+    id: UUID4
+    question: str = Field(max_length=8_000)
+    answer: str = Field(default="", max_length=32_000)
+    sources: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+    deep: bool = False
+
+
+class ImportConversation(BaseModel):
+    id: UUID4  # the SAME id the client used in localStorage -> idempotent upsert key
+    title: str = Field(min_length=1, max_length=200)
+    created_at: int | None = None  # epoch ms; clamped server-side
+    turns: list[ImportTurn] = Field(max_length=500)
+
+
+class ImportRequest(BaseModel):
+    conversations: list[ImportConversation] = Field(max_length=200)
+
+
 def _epoch_ms(value: datetime) -> int:
     return int(value.timestamp() * 1000)
 
 
+def _clamp_created_at(created_at_ms: int | None) -> datetime:
+    # A client can't pin a chat to the top of the sidebar forever: a missing or
+    # future timestamp is clamped to now.
+    now: datetime = datetime.now(UTC)
+    if created_at_ms is None:
+        return now
+    try:
+        candidate: datetime = datetime.fromtimestamp(created_at_ms / 1000, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        return now
+    return min(candidate, now)
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    tenant: str
+    via: Literal["header", "cookie", "public"]
+
+
+def _resolve_auth(authorization: str | None, session_cookie: str | None) -> AuthContext:
+    # Precedence: a Bearer header wins. If one is present it must be valid (fail
+    # closed, never silently fall back to the cookie), and auth is the header path
+    # -> CSRF-exempt. Only a cookie-derived tenant is subject to CSRF.
+    if authorization is not None:
+        tenant: str | None = tenant_from_authorization(authorization)
+        if tenant is None:
+            raise ApiError(code="invalid_token", status=401, message="invalid or expired session")
+        return AuthContext(tenant, "header")
+    if session_cookie is not None:
+        tenant = tenant_from_cookie(session_cookie)
+        if tenant is None:
+            raise ApiError(code="invalid_token", status=401, message="invalid or expired session")
+        return AuthContext(tenant, "cookie")
+    return AuthContext("public", "public")
+
+
+def _context(request: Request) -> AuthContext:
+    settings = get_settings()
+    return _resolve_auth(
+        request.headers.get("authorization"), request.cookies.get(settings.cookie_name)
+    )
+
+
+def _enforce_csrf(request: Request, context: AuthContext) -> None:
+    # CSRF only threatens the cookie path (the browser auto-sends it). Header/anon
+    # requests are exempt. Three checks for a cookie-authed mutation: allowlisted
+    # Origin, JSON content-type (closes the cross-site form-POST bypass), and a
+    # signed double-submit token.
+    if request.method in {"GET", "HEAD", "OPTIONS"} or context.via != "cookie":
+        return
+    settings = get_settings()
+    origin: str | None = request.headers.get("origin")
+    referer: str | None = request.headers.get("referer")
+    if origin is not None:
+        if origin not in _ALLOWED_ORIGINS:
+            raise ApiError(code="csrf_origin", status=403, message="cross-origin request blocked")
+    elif referer is not None:
+        # Match on an origin boundary: "http://localhost:3000.evil.com" must NOT pass
+        # a naive startswith against "http://localhost:3000".
+        if not any(
+            referer == allowed or referer.startswith(allowed + "/") for allowed in _ALLOWED_ORIGINS
+        ):
+            raise ApiError(code="csrf_origin", status=403, message="cross-origin request blocked")
+    else:
+        raise ApiError(code="csrf_origin", status=403, message="missing origin")
+    content_type: str = request.headers.get("content-type", "")
+    if request.url.path != "/api/ingest/upload" and not content_type.startswith("application/json"):
+        raise ApiError(code="csrf_content_type", status=415, message="application/json required")
+    cookie: str | None = request.cookies.get(settings.csrf_cookie_name)
+    header: str | None = request.headers.get(settings.csrf_header_name)
+    if not verify_csrf_token(cookie, header, settings.csrf_secret):
+        raise ApiError(code="csrf_token", status=403, message="csrf check failed")
+
+
+def _read_context(request: Request) -> AuthContext:
+    # Dependency for non-mutating (GET) endpoints: resolve auth, no CSRF.
+    return _context(request)
+
+
+def _mutating_context(request: Request) -> AuthContext:
+    # Dependency for mutating endpoints: resolve auth, then enforce CSRF on the cookie path.
+    context: AuthContext = _context(request)
+    _enforce_csrf(request, context)
+    return context
+
+
+def _require(context: AuthContext) -> str:
+    # Account-only resources (history): reject the anonymous "public" tenant.
+    if context.tenant == "public":
+        raise ApiError(code="unauthenticated", status=401, message="sign in to access this")
+    return context.tenant
+
+
 def _resolve_tenant(authorization: str | None) -> str:
-    # The verified JWT is the ONLY trusted tenant source. No Authorization header ->
-    # the shared "public" corpus; a present-but-invalid token fails CLOSED (401)
-    # rather than falling back to anything a client can set.
-    if authorization is None:
-        return "public"
-    tenant: str | None = tenant_from_authorization(authorization)
-    if tenant is None:
-        raise ApiError(code="invalid_token", status=401, message="invalid or expired session")
-    return tenant
+    # Header-only resolver retained for tests/CLI ergonomics; endpoints use the
+    # cookie-aware dependencies above.
+    return _resolve_auth(authorization, None).tenant
 
 
 def _require_tenant(authorization: str | None) -> str:
-    # Server-side history belongs to an account: a real (non-"public") tenant.
-    # Anonymous callers keep their history in the browser and are rejected here.
-    tenant: str = _resolve_tenant(authorization)
-    if tenant == "public":
-        raise ApiError(code="unauthenticated", status=401, message="sign in to access history")
-    return tenant
+    return _require(_resolve_auth(authorization, None))
 
 
 @app.post("/api/auth/signup")
-async def auth_signup(request: AuthRequest) -> AuthResponse:
+async def auth_signup(request: AuthRequest, response: Response) -> AuthResponse:
     try:
         result = await signup(request.email, request.password)
     except AuthError as error:
         raise ApiError(code="signup_failed", status=409, message=str(error)) from error
+    _set_session_cookies(response, result.token)
     return _auth_response(result)
 
 
 @app.post("/api/auth/login")
-async def auth_login(request: AuthRequest) -> AuthResponse:
+async def auth_login(request: AuthRequest, response: Response) -> AuthResponse:
     try:
         result = await login(request.email, request.password)
     except AuthError as error:
         raise ApiError(code="invalid_credentials", status=401, message=str(error)) from error
+    _set_session_cookies(response, result.token)
     return _auth_response(result)
 
 
+@app.post("/api/auth/logout")
+async def auth_logout(response: Response) -> dict[str, bool]:
+    _clear_session_cookies(response)
+    return {"ok": True}
+
+
 @app.get("/api/auth/me")
-async def auth_me(authorization: Annotated[str | None, Header()] = None) -> UserOut:
-    claims: dict[str, object] | None = None
+async def auth_me(http_request: Request) -> UserOut:
+    settings = get_settings()
+    token: str | None = None
+    authorization: str | None = http_request.headers.get("authorization")
     if authorization and authorization.lower().startswith("bearer "):
-        claims = decode_token(authorization.split(" ", 1)[1].strip())
+        token = authorization.split(" ", 1)[1].strip()
+    else:
+        token = http_request.cookies.get(settings.cookie_name)
+    claims: dict[str, object] | None = decode_token(token) if token else None
     if claims is None:
         raise ApiError(code="unauthenticated", status=401, message="not signed in")
     sub, email, tenant = claims.get("sub"), claims.get("email"), claims.get("tenant")
@@ -222,9 +391,9 @@ async def auth_me(authorization: Annotated[str | None, Header()] = None) -> User
 
 @app.get("/api/conversations")
 async def conversations_list(
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_read_context)],
 ) -> ConversationsOut:
-    tenant: str = _require_tenant(authorization)
+    tenant: str = _require(context)
     summaries = await list_conversations(tenant)
     return ConversationsOut(
         conversations=[
@@ -239,9 +408,9 @@ async def conversations_list(
 @app.get("/api/conversations/{conversation_id}")
 async def conversations_get(
     conversation_id: str,
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_read_context)],
 ) -> ConversationOut:
-    tenant: str = _require_tenant(authorization)
+    tenant: str = _require(context)
     conversation = await get_conversation(tenant, conversation_id)
     if conversation is None:
         raise ApiError(code="not_found", status=404, message="no such conversation")
@@ -257,9 +426,9 @@ async def conversations_get(
 async def conversations_put(
     conversation_id: str,
     request: ConversationUpsert,
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
 ) -> ConversationSummaryOut:
-    tenant: str = _require_tenant(authorization)
+    tenant: str = _require(context)
     updated_at = await upsert_conversation(tenant, conversation_id, request.title, request.turns)
     if updated_at is None:
         raise ApiError(code="invalid_id", status=422, message="malformed conversation id")
@@ -271,10 +440,42 @@ async def conversations_put(
 @app.delete("/api/conversations/{conversation_id}")
 async def conversations_delete(
     conversation_id: str,
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
 ) -> dict[str, bool]:
-    tenant: str = _require_tenant(authorization)
+    tenant: str = _require(context)
     return {"ok": await delete_conversation(tenant, conversation_id)}
+
+
+@app.post("/api/conversations/import")
+async def conversations_import(
+    request: ImportRequest,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
+) -> dict[str, int]:
+    # Adopt the chats a user made while logged out: the client uploads its own
+    # localStorage conversations and the server attaches them to the verified
+    # tenant. The tenant comes from the token, never the body — there is no
+    # "claim someone else's data" because the client only sends data it holds.
+    tenant: str = _require(context)
+    items: list[tuple[uuid.UUID, str, list[dict[str, Any]], datetime]] = []
+    skipped: int = 0
+    for conversation in request.conversations:
+        in_progress: bool = (
+            len(conversation.turns) == 1 and not conversation.turns[0].answer.strip()
+        )
+        if not conversation.turns or in_progress:
+            skipped += 1
+            continue
+        turns: list[dict[str, Any]] = [turn.model_dump(mode="json") for turn in conversation.turns]
+        items.append(
+            (conversation.id, conversation.title, turns, _clamp_created_at(conversation.created_at))
+        )
+    outcome = await import_conversations(tenant, items)
+    log.info("conversations_import", imported=outcome.imported, skipped=skipped)
+    return {
+        "imported": outcome.imported,
+        "already_existed": outcome.already_existed,
+        "skipped": skipped,
+    }
 
 
 def _encode(event: AgentEvent) -> str:
@@ -304,9 +505,9 @@ async def ready() -> dict[str, str]:
 @app.post("/api/ask")
 async def ask(
     request: AskRequest,
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
 ) -> EventSourceResponse:
-    return EventSourceResponse(_ask_events(request, _resolve_tenant(authorization)))
+    return EventSourceResponse(_ask_events(request, context.tenant))
 
 
 async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[str, str]]:
@@ -350,11 +551,9 @@ async def _ask_events(request: AskRequest, tenant: str) -> AsyncIterator[dict[st
 @app.post("/api/ingest")
 async def ingest(
     request: IngestRequest,
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
 ) -> IngestResponse:
-    result = await _ingest(
-        request.source, corpus=request.corpus, tenant=_resolve_tenant(authorization)
-    )
+    result = await _ingest(request.source, corpus=request.corpus, tenant=context.tenant)
     return IngestResponse(source_uri=result.source_uri, chunks_written=result.chunks_written)
 
 
@@ -386,11 +585,11 @@ def _persist_upload(name: str, data: bytes) -> str:
 @app.post("/api/ingest/upload")
 async def ingest_upload(
     file: Annotated[UploadFile, File()],
-    authorization: Annotated[str | None, Header()] = None,
+    context: Annotated[AuthContext, Depends(_mutating_context)],
 ) -> IngestResponse:
     name: str = Path(file.filename or "upload").name
     data: bytes = await file.read()
     path: str = await asyncio.to_thread(_persist_upload, name, data)
-    result = await _ingest(path, corpus="default", tenant=_resolve_tenant(authorization))
+    result = await _ingest(path, corpus="default", tenant=context.tenant)
     log.info("api_ingest_upload", file=name, chunks=result.chunks_written)
     return IngestResponse(source_uri=name, chunks_written=result.chunks_written)
