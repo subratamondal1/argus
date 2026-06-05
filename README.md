@@ -182,7 +182,8 @@ phase boundary, not only at the end.
 - **Phase 5 — Durable execution + sandbox + MCP**: **DBOS durable execution** ✅ (opt-in
   `ARGUS_USE_DURABLE`; deep research checkpoints per step into Postgres and resumes from the last
   step after a crash — verified by `scripts/durable_crash_resume.py`); sandboxed `execute_python`
-  behind a human-in-the-loop gate ✅; the registry exposed as an MCP server (roadmap).
+  behind a human-in-the-loop gate ✅; the registry exposed as an **MCP server** ✅ (`argus mcp` —
+  the tool registry over the Model Context Protocol for any MCP host).
 - **Phase 6 — Polish**: README top-fold demo, architecture docs, ADRs, and a documented
   failure-mode catalog.
 
