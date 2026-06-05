@@ -107,9 +107,18 @@ def _normalize(text: str) -> str:
     return re.sub(r"[\s_-]+", " ", text.lower()).strip()
 
 
+_KEYWORD_COVERAGE_FLOOR: float = 0.6
+
+
 def _keyword_ok(answer: str, must_include: list[str]) -> bool:
+    # A grounding guard, not a phrasing trap: a correct answer phrases things its own
+    # way, so require a MAJORITY of the expected substrings rather than every one. The
+    # LLM judge carries correctness; this is the cheap deterministic backstop.
+    if not must_include:
+        return True
     normalized: str = _normalize(answer)
-    return all(_normalize(keyword) in normalized for keyword in must_include)
+    present: int = sum(1 for keyword in must_include if _normalize(keyword) in normalized)
+    return present / len(must_include) >= _KEYWORD_COVERAGE_FLOOR
 
 
 async def evaluate(

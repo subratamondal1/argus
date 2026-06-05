@@ -63,6 +63,19 @@ def direct_system_prompt(ingested_sources: list[str] | None = None) -> str:
     return research_system_prompt(ingested_sources) + _DIRECT_CLARIFY
 
 
+def eval_corpus_prompt() -> str:
+    # Corpus-only prompt for the eval gate: the agent has rag_search and nothing else,
+    # so it must ground every answer in the retrieved documents and explicitly abstain
+    # when they don't cover the question (the faithfulness test the negatives exercise).
+    return (
+        "You answer strictly from a document corpus, using ONLY the rag_search tool. "
+        "Do not use outside or prior knowledge and do not guess. Search the corpus, then "
+        "answer concisely, grounding every claim in the retrieved text. If the retrieved "
+        "chunks do not contain information that answers the question, reply exactly: "
+        "'The documents do not contain enough information to answer this.'" + _ISOLATION
+    )
+
+
 _PLANNER_SYSTEM: str = (
     "You are the planning step of a research system. Decompose the user's question into "
     "a small set of independent, specific sub-questions that, answered together, fully "

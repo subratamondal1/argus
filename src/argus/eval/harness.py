@@ -16,7 +16,7 @@ import orjson
 
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop
-from argus.agent.prompts import research_system_prompt
+from argus.agent.prompts import eval_corpus_prompt
 from argus.builders import build_llm
 from argus.config import get_settings
 from argus.db import close_pool
@@ -29,8 +29,6 @@ from argus.rag.ingest import ingest_source
 from argus.rag.retriever import RetrievedChunk, retrieve
 from argus.tools.rag_search import register_rag_search
 from argus.tools.registry import ToolRegistry
-from argus.tools.web_fetch import register_web_fetch
-from argus.tools.web_search import register_web_search
 
 log = get_logger(__name__)
 
@@ -58,9 +56,10 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
 
     llm = build_llm(settings)
     judge_llm = build_llm(settings, model=settings.judge_model, temperature=0.0)
+    # Corpus-only: the eval agent gets rag_search and nothing else, so retrieval is
+    # tested in isolation (no web fallback) and the negatives are genuinely
+    # unanswerable -> a faithful agent must abstain rather than answer from the web.
     registry = ToolRegistry()
-    register_web_search(registry)
-    register_web_fetch(registry)
     register_rag_search(registry, corpus=_CORPUS)
     budget = Budget(
         max_turns=settings.max_turns,
@@ -74,7 +73,7 @@ async def run_gate(golden_path: Path, thresholds_path: Path, report_path: Path) 
 
     async def _answer(question: str) -> str:
         loop = AgentLoop(
-            registry=registry, llm=llm, budget=budget, system_prompt=research_system_prompt()
+            registry=registry, llm=llm, budget=budget, system_prompt=eval_corpus_prompt()
         )
         result = await loop.run(question)
         return result.answer
