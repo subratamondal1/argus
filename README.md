@@ -121,23 +121,31 @@ make eval-calibrate   # prove the judge agrees with humans (Cohen's κ ≥ floor
 
 Latest run (`make eval`, 48-item benchmark, corpus-only):
 
-| Metric (RAGAS vocabulary) | gpt-5.4-mini | qwen2.5:3b (local) | threshold |
-|---|---|---|---|
-| context_recall (hit@k) | 1.000 | 0.976 | ≥ 0.80 |
-| context_precision | 0.662 | 0.624 | ≥ 0.20 |
-| mrr | 0.948 | 0.952 | ≥ 0.60 |
-| faithfulness | 0.976 | 1.000 | ≥ 0.70 |
-| answer_relevancy | 1.000 | 0.690 | — |
-| judge_pass_rate | 0.976 | 0.000 | ≥ 0.70 |
-| keyword_pass_rate | 0.881 | 0.190 | ≥ 0.60 |
-| abstention_rate (negatives declined) | 1.000 | 0.000 | ≥ 0.70 |
-| **Gate** | **PASS** | FAIL | |
+| Metric (RAGAS vocabulary) | gpt-5.4-mini | qwen3.5:4b (local) | qwen2.5:3b (local) | threshold |
+|---|---|---|---|---|
+| context_recall (hit@k) | 1.000 | 0.976 | 0.976 | ≥ 0.80 |
+| context_precision | 0.662 | 0.676 | 0.624 | ≥ 0.20 |
+| mrr | 0.948 | 0.952 | 0.952 | ≥ 0.60 |
+| faithfulness | 0.976 | 0.976 | 1.000 | ≥ 0.70 |
+| answer_relevancy | 1.000 | 0.976 | 0.690 | — |
+| judge_pass_rate | 0.976 | 0.643 | 0.000 | ≥ 0.70 |
+| keyword_pass_rate | 0.881 | 0.833 | 0.190 | ≥ 0.60 |
+| abstention_rate (negatives declined) | 1.000 | 0.833 | 0.000 | ≥ 0.70 |
+| **Gate** | **PASS** | FAIL (1 metric, by 0.057) | FAIL | |
 
 Metrics are implemented in-repo ([`eval/`](src/argus/eval/)), not via RAGAS, to stay
 dependency-light and offline. Retrieval and generation signals are gated
 independently, and negatives are scored by abstention (a faithful system must decline
-what the corpus can't answer). The local 3B stack is a zero-cost dev loop; the
-thresholds are tuned for a frontier model.
+what the corpus can't answer). The thresholds are tuned for a frontier model: the
+hosted gpt-5.4-mini clears the gate, while a **fully-local $0 stack** (qwen3.5:4b
+answer with thinking disabled, nomic embeddings, a non-reasoning qwen2.5:7b judge at
+κ=1.0) passes seven of eight metrics and misses only `judge_pass_rate` by 0.057 —
+one notch of reasoning short, with retrieval/faithfulness/abstention all green. The
+qwen2.5:3b column shows where a smaller model collapses (it fabricates on every
+negative: abstention 0.000). Getting a local reasoning model through the gate took
+disabling Qwen3's default thinking (`reasoning_effort="disable"` → Ollama `think:false`,
+~84s→~2s/call) while keeping it on for structured judge output, which Ollama drops
+when thinking is off.
 
 ## Document ingestion (RAG)
 
