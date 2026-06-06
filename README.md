@@ -50,6 +50,14 @@ framework** (no LangChain/LangGraph): the loop, the budget, and the failure hand
 directly. **Local-first** — it runs at zero cost on Ollama; OpenAI and Anthropic are optional
 drop-ins.
 
+<p align="center">
+  <img src="docs/assets/argus-demo.gif" width="100%" alt="Argus deep-research run: a planner decomposes the question into four sub-questions, four searcher agents run in parallel, and a synthesizer writes a cited answer — streamed live." />
+</p>
+
+<p align="center">
+  <em>One <strong>Deep research</strong> run, end to end: the planner decomposes the question, four searcher agents fan out in parallel, and the synthesizer streams a cited answer — running locally on Ollama at zero cost.</em>
+</p>
+
 ## Features
 
 | Capability | Detail |
