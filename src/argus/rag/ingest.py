@@ -49,7 +49,9 @@ async def ingest_source(
         return IngestResult(source_uri=parsed.uri, chunks_written=0)
 
     llm = LLMClient(
-        model=settings.context_model or settings.model, timeout_s=settings.request_timeout_s
+        model=settings.context_model or settings.model,
+        timeout_s=settings.request_timeout_s,
+        reasoning_effort=settings.reasoning_effort,
     )
     contextualized: list[str] = []
     for chunk in chunks:

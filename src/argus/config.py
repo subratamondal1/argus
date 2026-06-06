@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     num_retries: int = Field(
         default=2, ge=0, description="LiteLLM retries on transient failures before falling back."
     )
+    reasoning_effort: str | None = Field(
+        default=None,
+        description=(
+            "Passed through to LiteLLM. On a local Ollama reasoning model (Qwen3.x) "
+            '"disable"/"minimal" maps to `think: false`, cutting a multi-second thinking '
+            "trace off every call — required to keep latency-sensitive paths (bulk "
+            "contextualization, the eval gate) usable. None leaves provider defaults."
+        ),
+    )
     judge_model: str | None = Field(
         default=None,
         description=(

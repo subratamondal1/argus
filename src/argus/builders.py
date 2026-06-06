@@ -52,6 +52,7 @@ def build_llm(
         temperature=temperature,
         num_retries=settings.num_retries,
         fallbacks=settings.fallback_models,
+        reasoning_effort=settings.reasoning_effort,
     )
 
 

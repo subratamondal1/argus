@@ -44,10 +44,12 @@ class LLMClient:
         temperature: float | None = None,
         num_retries: int = 2,
         fallbacks: list[str] | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._model: str = model
         self._timeout: float = timeout_s
         self._temperature: float | None = temperature
+        self._reasoning_effort: str | None = reasoning_effort
         # litellm retries transient failures (timeouts, rate limits, 5xx) with
         # backoff, so a one-off API hiccup never surfaces to the user.
         self._num_retries: int = num_retries
@@ -64,8 +66,16 @@ class LLMClient:
             kwargs["fallbacks"] = self._fallbacks
         return kwargs
 
-    def _sampling_kwargs(self) -> dict[str, Any]:
-        return {} if self._temperature is None else {"temperature": self._temperature}
+    def _sampling_kwargs(self, *, structured: bool = False) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {}
+        if self._temperature is not None:
+            kwargs["temperature"] = self._temperature
+        # A local Ollama Qwen3.x model silently ignores the JSON-schema constraint when
+        # thinking is disabled (think:false) and emits free-form/YAML text, so a structured
+        # call keeps the model's default reasoning to actually get schema-valid JSON.
+        if self._reasoning_effort is not None and not structured:
+            kwargs["reasoning_effort"] = self._reasoning_effort
+        return kwargs
 
     def _prepare_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # Anthropic caches the large static prefix (tools + system, which precede
@@ -187,7 +197,7 @@ class LLMClient:
             messages=messages,
             response_format=schema,
             **self._reliability_kwargs(),
-            **self._sampling_kwargs(),
+            **self._sampling_kwargs(structured=True),
         )
         content: str = response.choices[0].message.content or "{}"
         return schema.model_validate_json(content)
