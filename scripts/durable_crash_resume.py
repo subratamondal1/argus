@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dbos import DBOS, DBOSConfig, SetWorkflowID
+from dbos import DBOS, DBOSConfig, SetWorkflowID  # ty: ignore[unresolved-import]
 
 from argus.config import get_settings
 

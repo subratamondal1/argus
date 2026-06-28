@@ -21,7 +21,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from dbos import DBOS, DBOSConfig
+from dbos import DBOS, DBOSConfig  # ty: ignore[unresolved-import]
 
 from argus.agent.budget import Budget
 from argus.agent.loop import AgentLoop

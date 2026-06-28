@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 from __future__ import annotations
 
 import pytest
@@ -26,8 +27,9 @@ def test_serialize_handles_pydantic_and_plain() -> None:
 
 
 async def test_mcp_protocol_lists_and_gates_tools() -> None:
-    from mcp.shared.memory import create_connected_server_and_client_session as connect
-
+    # fmt: off
+    from mcp.shared.memory import create_connected_server_and_client_session as connect  # ty: ignore[unresolved-import]
+    # fmt: on
     from argus.builders import build_registry
     from argus.mcp_server import build_mcp_server
 

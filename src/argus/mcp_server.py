@@ -18,9 +18,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import mcp.types as types
+import mcp.types as types  # ty: ignore[unresolved-import]
 import orjson
-from mcp.server import Server
+from mcp.server import Server  # ty: ignore[unresolved-import]
 from pydantic import BaseModel
 
 from argus.builders import build_registry
@@ -95,7 +95,7 @@ async def run_stdio() -> None:
     # stdio transport: the MCP host launches `argus mcp` as a subprocess and speaks
     # JSON-RPC over stdin/stdout. This is the transport Claude Desktop and most IDE
     # hosts use for a local server.
-    from mcp.server.stdio import stdio_server
+    from mcp.server.stdio import stdio_server  # ty: ignore[unresolved-import]
 
     settings = get_settings()
     registry = build_registry()

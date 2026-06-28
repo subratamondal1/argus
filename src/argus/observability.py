@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 """Optional OpenTelemetry tracing: FastAPI + asyncpg + httpx -> OTLP -> Jaeger.
 
 Lazy-imports the otel SDK (the `otel` extra) so the core stays dependency-light,
@@ -20,14 +21,14 @@ def setup_tracing(app: FastAPI, settings: Settings) -> None:
     if not settings.otel_enabled:
         return
     try:
-        from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-        from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry import trace  # ty: ignore[unresolved-import]
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # ty: ignore[unresolved-import]
+        from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor  # ty: ignore[unresolved-import]
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # ty: ignore[unresolved-import]
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # ty: ignore[unresolved-import]
+        from opentelemetry.sdk.resources import Resource  # ty: ignore[unresolved-import]
+        from opentelemetry.sdk.trace import TracerProvider  # ty: ignore[unresolved-import]
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # ty: ignore[unresolved-import]
     except ImportError:
         log.warning("otel_extra_missing", hint="uv sync --extra otel")
         return
