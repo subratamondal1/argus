@@ -38,7 +38,7 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --frozen --all-groups
+        run: uv sync --frozen --all-groups --all-extras
 
       - name: Lint (ruff)
         run: uv run ruff check .
@@ -89,7 +89,7 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --frozen --all-groups
+        run: uv sync --frozen --all-groups --all-extras
 
       - name: Apply migrations
         run: uv run argus migrate
